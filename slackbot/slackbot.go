@@ -28,14 +28,19 @@ func New(name string, slackToken string, commands map[string]CommandFunc) *Slack
 		SlackClient: client.New(slackToken),
 	}
 
-	b.commands.Register("help", b.doHelp)
-	b.commands.Register("version", b.doVersion)
+	b.Register("help", b.doHelp)
+	b.Register("version", b.doVersion)
 
 	for cmd, callbackFunction := range commands {
 		b.commands.Register(cmd, callbackFunction)
 	}
 
 	return &b
+}
+
+// Register adds a new command
+func (b *SlackBot) Register(name string, command CommandFunc) {
+	b.commands.Register(name, command)
 }
 
 // Run the slackbot
