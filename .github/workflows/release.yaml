@@ -30,11 +30,14 @@ jobs:
           file: ${{ matrix.module}}/coverage.txt
   release:
     runs-on: ubuntu-latest
+    needs:
+      - test
     steps:
-    - uses: marvinpinto/action-automatic-releases@v1.2.1
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        prerelease: false
-        draft: false
-        title: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+      - uses: marvinpinto/action-automatic-releases@v1.2.1
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: false
+          draft: false
+          title: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          automatic_release_tag: ${{ github.ref }}
