@@ -3,8 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - '*'
-
+      - 'set/v*'
 jobs:
   test:
     runs-on: ubuntu-latest
