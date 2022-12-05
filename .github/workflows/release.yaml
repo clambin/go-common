@@ -34,10 +34,11 @@ jobs:
       - test
     steps:
       - run: |
-          TAG=${REF#refs/tags/*}
+          TAG=${GITHUB_REF#refs/tags/*}
           echo "build_tag=$TAG" >> $GITHUB_ENV
           echo "build_module=${TAG%/*}" >> $GITHUB_ENV
           echo "build_version=${TAG#*/*}" >> $GITHUB_ENV
+          cat $GITHUB_ENV
       - uses: actions/create-release@latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
