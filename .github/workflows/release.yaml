@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'set/v*'
+      - 'tabulator/v*'
+
 jobs:
   test:
     runs-on: ubuntu-latest
