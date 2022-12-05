@@ -2,9 +2,9 @@ name: Test
 
 on:
   push:
-    branches-ignore:
+    branches:
       - main
-  pull_request_target:
+  #pull_request_target:
 
 jobs:
   test:
