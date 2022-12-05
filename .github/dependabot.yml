@@ -8,6 +8,10 @@ updates:
     directory: "/tabulator"
     schedule:
       interval: "daily"
+  - package-ecosystem: "gomod"
+    directory: "/slackbot"
+    schedule:
+      interval: "daily"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
