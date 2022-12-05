@@ -33,11 +33,16 @@ jobs:
     needs:
       - test
     steps:
-      - uses: marvinpinto/action-automatic-releases@v1.2.1
+      - run: |
+          TAG=${REF#refs/tags/*}
+          echo "build_tag=$TAG" >> $GITHUB_ENV
+          echo "build_module=${TAG%/*}" >> $GITHUB_ENV
+          echo "build_version=${TAG#*/*}" >> $GITHUB_ENV
+      - uses: actions/create-release@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          prerelease: false
+          tag_name: ${{ env.build_tag }}
+          release_name: ${{ env.build_module }} ${{ env.build_version }}
           draft: false
-          title: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          automatic_release_tag: ${{ github.ref }}
+          prerelease: false
