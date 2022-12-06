@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - cache
+      - httpserver
 
 jobs:
   test:
@@ -15,11 +15,12 @@ jobs:
           - '1.18'
           - '1.19'
         module:
+          - cache
+          - httpclient
+          - httpserver
+          - slackbot
           - set
           - tabulator
-          - slackbot
-          - httpclient
-          - cache
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3

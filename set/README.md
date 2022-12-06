@@ -3,3 +3,11 @@
 [![GoDoc](https://pkg.go.dev/badge/github.com/clambin/go-common/set?utm_source=godoc)](http://pkg.go.dev/github.com/clambin/go-common/set)
 
 Tabulates time/column/value data in a 2 dimensional table.
+
+## Authors
+
+* **Christophe Lambin**
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.

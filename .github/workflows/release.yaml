@@ -3,11 +3,12 @@ name: Release
 on:
   push:
     tags:
-      - 'set/v*'
-      - 'tabulator/v*'
-      - 'slackbot/v*'
-      - 'httpclient/v*'
       - 'cache/v*'
+      - 'httpclient/v*'
+      - 'httpserver/v*'
+      - 'set/v*'
+      - 'slackbot/v*'
+      - 'tabulator/v*'
 
 jobs:
   test:
@@ -18,11 +19,12 @@ jobs:
           - '1.18'
           - '1.19'
         module:
+          - cache
+          - httpclient
+          - httpserver
+          - slackbot
           - set
           - tabulator
-          - slackbot
-          - httpclient
-          - cache
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
@@ -42,12 +44,6 @@ jobs:
     needs:
       - test
     steps:
-      #- run: |
-      #    TAG=${GITHUB_REF#refs/tags/*}
-      #    echo "build_tag=$TAG" >> $GITHUB_ENV
-      #    echo "build_module=${TAG%/*}" >> $GITHUB_ENV
-      #    echo "build_version=${TAG#*/*}" >> $GITHUB_ENV
-      #    cat $GITHUB_ENV
       - uses: softprops/action-gh-release@v1
         with:
           draft: false

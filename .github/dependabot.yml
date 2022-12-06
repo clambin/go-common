@@ -17,6 +17,10 @@ updates:
     schedule:
       interval: "daily"
   - package-ecosystem: "gomod"
+    directory: "/httpserver"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "gomod"
     directory: "/cache"
     schedule:
       interval: "daily"
