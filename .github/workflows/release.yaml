@@ -7,6 +7,7 @@ on:
       - 'tabulator/v*'
       - 'slackbot/v*'
       - 'httpclient/v*'
+      - 'cache/v*'
 
 jobs:
   test:
@@ -21,6 +22,7 @@ jobs:
           - tabulator
           - slackbot
           - httpclient
+          - cache
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3

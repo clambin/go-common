@@ -16,6 +16,10 @@ updates:
     directory: "/httpclient"
     schedule:
       interval: "daily"
+  - package-ecosystem: "gomod"
+    directory: "/cache"
+    schedule:
+      interval: "daily"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
