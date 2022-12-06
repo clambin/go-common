@@ -1,4 +1,4 @@
-module github.com/clambin/cache
+module github.com/clambin/go-common/cache
 
 go 1.18
 

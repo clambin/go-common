@@ -1,7 +1,7 @@
 package cache_test
 
 import (
-	"github.com/clambin/cache"
+	"github.com/clambin/go-common/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"runtime"
