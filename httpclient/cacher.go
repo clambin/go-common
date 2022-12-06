@@ -3,7 +3,7 @@ package httpclient
 import (
 	"bufio"
 	"bytes"
-	"github.com/clambin/cache"
+	"github.com/clambin/go-common/cache"
 	"net/http"
 	"net/http/httputil"
 	"time"
