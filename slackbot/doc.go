@@ -6,15 +6,8 @@
 //
 // Once running, the bot will listen for any commands specified on the channel and execute them. Slackbot itself
 // implements two commands: "version" (which responds with botName) and "help" (which shows all implemented commands).
-// Additional commands can be added through the commands parameter (see New & CommandFunc):
 //
-//	    func doHello(args ...string) []slack.Attachment {
-//		       return []slack.Attachment{{Text: "hello world " + strings.Join(args, ", ")}}
-//	    }
+// Applications can send messages to one or more channels as follows:
 //
-// The returned attachments will be sent to the Slack channel where the command was issued.
-//
-// Additionally, output can be sent to the Slack channel(s) using PostChannel, e.g.:
-//
-//	bot.GetPostChannel() <- []slack.Attachment{{Text: "Hello world"}}
+//	bot.Send(channel, []slack.Attachment{{Text: "Hello world"}})
 package slackbot
