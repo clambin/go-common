@@ -18,7 +18,12 @@ func TestSlackBot_Run(t *testing.T) {
 	ch := make(chan *slack.MessageEvent)
 	c.On("GetMessage").Return(ch)
 	c.On("GetUserID").Return("123", nil)
-	c.On("Run", mock.AnythingOfType("*context.cancelCtx")).Return(nil)
+
+	var runWg sync.WaitGroup
+	runWg.Add(1)
+	c.On("Run", mock.AnythingOfType("*context.cancelCtx")).Run(func(args mock.Arguments) {
+		runWg.Done()
+	}).Return(nil)
 
 	b := slackbot.New(t.Name(), "some-token", nil)
 	b.SlackClient = c
@@ -43,6 +48,7 @@ func TestSlackBot_Run(t *testing.T) {
 	}}
 
 	wg2.Wait()
+	runWg.Wait()
 	cancel()
 	wg.Wait()
 }

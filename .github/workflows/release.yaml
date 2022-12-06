@@ -6,6 +6,7 @@ on:
       - 'set/v*'
       - 'tabulator/v*'
       - 'slackbot/v*'
+      - 'httpclient/v*'
 
 jobs:
   test:
@@ -19,6 +20,7 @@ jobs:
           - set
           - tabulator
           - slackbot
+          - httpclient
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3

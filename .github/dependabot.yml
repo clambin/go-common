@@ -12,6 +12,10 @@ updates:
     directory: "/slackbot"
     schedule:
       interval: "daily"
+  - package-ecosystem: "gomod"
+    directory: "/httpclient"
+    schedule:
+      interval: "daily"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
