@@ -4,25 +4,18 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"sync"
 	"time"
 )
 
-// CacheTable holds the Endpoints that should be cached. If Table is empty, all responses will be cached.
-type CacheTable struct {
-	Table    []CacheTableEntry
-	compiled bool
-	lock     sync.Mutex
-}
+// CacheTable holds the endpoints that should be cached. If Table is empty, all responses will be cached.
+type CacheTable []*CacheTableEntry
 
-func (c *CacheTable) shouldCache(r *http.Request) (match bool, expiry time.Duration) {
-	if len(c.Table) == 0 {
+func (c CacheTable) shouldCache(r *http.Request) (match bool, expiry time.Duration) {
+	if len(c) == 0 {
 		return true, 0
 	}
 
-	c.compileIfNeeded()
-
-	for _, entry := range c.Table {
+	for _, entry := range c {
 		if match, expiry = entry.shouldCache(r); match {
 			return
 		}
@@ -30,38 +23,23 @@ func (c *CacheTable) shouldCache(r *http.Request) (match bool, expiry time.Durat
 	return
 }
 
-func (c *CacheTable) compileIfNeeded() {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	if c.compiled {
-		return
+func (c CacheTable) compile() {
+	for _, entry := range c {
+		entry.compile()
 	}
-
-	for index := range c.Table {
-		if c.Table[index].IsRegExp {
-			var err error
-			c.Table[index].compiledRegExp, err = regexp.Compile(c.Table[index].Endpoint)
-			if err != nil {
-				panic(fmt.Errorf("cacheTable: invalid regexp '%s': %w", c.Table[index].Endpoint, err))
-			}
-		}
-	}
-	c.compiled = true
 }
 
-// CacheTableEntry contains a single endpoint that should be cached. If the Endpoint is a regular expression, IsRegExp must be set.
-// CacheTable will then compile it when needed. CacheTable will panic if the regular expression is invalid.
+// CacheTableEntry contains a single endpoint that should be cached. If the Path is a regular expression, IsRegExp must be set.
 type CacheTableEntry struct {
-	// Endpoint is the URL Path for requests whose responses should be cached.
+	// Path is the URL Path for requests whose responses should be cached.
 	// Can be a literal path, or a regular expression. In the latter case,
 	// set IsRegExp to true
-	Endpoint string
+	Path string
 	// Methods is the list of HTTP Methods for which requests the response should be cached.
 	// If empty, requests for any method will be cached.
 	Methods []string
-	// IsRegExp indicated the Endpoint is a regular expression.
-	// Note: CacheTableEntry will panic if Endpoint does not contain a valid regular expression.
+	// IsRegExp indicated the Path is a regular expression.
+	// Note: CacheTableEntry will panic if Path does not contain a valid regular expression.
 	IsRegExp bool
 	// Expiry indicates how long a response should be cached.
 	Expiry         time.Duration
@@ -70,24 +48,24 @@ type CacheTableEntry struct {
 
 // var CacheEverything []CacheTableEntry
 
-func (entry CacheTableEntry) shouldCache(r *http.Request) (match bool, expiry time.Duration) {
-	match = entry.matchesEndpoint(r)
+func (entry *CacheTableEntry) shouldCache(r *http.Request) (match bool, expiry time.Duration) {
+	match = entry.matchesPath(r)
 	if !match {
 		return
 	}
-	match = entry.matchesMethods(r)
+	match = entry.matchesMethod(r)
 	return match, entry.Expiry
 }
 
-func (entry CacheTableEntry) matchesEndpoint(r *http.Request) bool {
-	endpoint := r.URL.Path
+func (entry *CacheTableEntry) matchesPath(r *http.Request) bool {
+	path := r.URL.Path
 	if entry.IsRegExp {
-		return entry.compiledRegExp.MatchString(endpoint)
+		return entry.compiledRegExp.MatchString(path)
 	}
-	return entry.Endpoint == endpoint
+	return entry.Path == path
 }
 
-func (entry CacheTableEntry) matchesMethods(r *http.Request) bool {
+func (entry *CacheTableEntry) matchesMethod(r *http.Request) bool {
 	if len(entry.Methods) == 0 {
 		return true
 	}
@@ -97,4 +75,15 @@ func (entry CacheTableEntry) matchesMethods(r *http.Request) bool {
 		}
 	}
 	return false
+}
+
+func (entry *CacheTableEntry) compile() {
+	if !entry.IsRegExp {
+		return
+	}
+	var err error
+	entry.compiledRegExp, err = regexp.Compile(entry.Path)
+	if err != nil {
+		panic(fmt.Errorf("cacheTable: invalid regexp '%s': %w", entry.Path, err))
+	}
 }

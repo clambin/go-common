@@ -3,62 +3,93 @@ package httpclient
 import (
 	"github.com/stretchr/testify/assert"
 	"net/http"
-	"net/url"
 	"testing"
 	"time"
 )
 
 func TestCacheTable_ShouldCache(t *testing.T) {
-	table := CacheTable{Table: []CacheTableEntry{
-		{Endpoint: `/foo`},
-		{Endpoint: `/foo/[\d+]`, IsRegExp: true},
-		{Endpoint: `/bar/.*`, IsRegExp: true, Methods: []string{http.MethodGet}},
-	}}
-
-	type testcase struct {
-		path   string
-		method string
-		expiry time.Duration
-		match  bool
+	table := CacheTable{
+		{
+			Path:   "/foo",
+			Expiry: time.Second,
+		},
+		{
+			Path:    "/bar",
+			Methods: []string{http.MethodGet},
+			Expiry:  time.Minute,
+		},
+		{
+			Path:     "/snafu/[a-z]+",
+			IsRegExp: true,
+			Expiry:   time.Hour,
+		},
 	}
-	for _, tc := range []testcase{
-		{path: "/foo", match: true},
-		{path: "/foo/123", match: true},
-		{path: "/foo/bar", match: false},
-		{path: "/bar/get", method: http.MethodGet, match: true},
-		{path: "/bar/post", method: http.MethodPost, match: false},
-		{path: "/foobar", match: false},
-	} {
-		t.Run(tc.path, func(t *testing.T) {
-			req, _ := http.NewRequest(tc.method, tc.path, nil)
-			found, expiry := table.shouldCache(req)
-			assert.Equal(t, tc.match, found)
-			assert.Equal(t, tc.expiry, expiry)
+
+	tests := []struct {
+		name     string
+		method   string
+		url      string
+		cache    bool
+		duration time.Duration
+	}{
+		{
+			name:     "no method",
+			method:   http.MethodGet,
+			url:      "/foo",
+			cache:    true,
+			duration: time.Second,
+		},
+		{
+			name:     "method match",
+			method:   http.MethodGet,
+			url:      "/bar",
+			cache:    true,
+			duration: time.Minute,
+		},
+		{
+			name:   "method mismatch",
+			method: http.MethodPut,
+			url:    "/bar",
+			cache:  false,
+		},
+		{
+			name:     "regexp",
+			method:   http.MethodGet,
+			url:      "/snafu/foobar",
+			cache:    true,
+			duration: time.Hour,
+		},
+		{
+			name:   "regexp mismatch",
+			method: http.MethodGet,
+			url:    "/snafu/123",
+			cache:  false,
+		},
+		{
+			name:   "url mismatch",
+			method: http.MethodGet,
+			url:    "/snafu",
+			cache:  false,
+		},
+	}
+
+	table.compile()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest(tt.method, tt.url, nil)
+			cache, duration := table.shouldCache(req)
+			assert.Equal(t, tt.cache, cache)
+			if tt.cache {
+				assert.Equal(t, tt.duration, duration)
+			}
 		})
-
-	}
-
-	assert.True(t, table.compiled)
-	for _, entry := range table.Table {
-		if entry.IsRegExp {
-			assert.NotNil(t, entry.compiledRegExp)
-		} else {
-			assert.Nil(t, entry.compiledRegExp)
-		}
 	}
 }
 
-func TestCacheTable_CacheEverything(t *testing.T) {
+func TestCacheTable_Empty(t *testing.T) {
 	table := CacheTable{}
 
-	found, _ := table.shouldCache(&http.Request{URL: &url.URL{Path: "/"}})
-	assert.True(t, found)
-}
-
-func TestCacheTable_Invalid_Input(t *testing.T) {
-	table := CacheTable{Table: []CacheTableEntry{
-		{Endpoint: `/foo/[\d+`, IsRegExp: true},
-	}}
-
-	assert.Panics(t, func() { table.shouldCache(&http.Request{URL: &url.URL{Path: "/foo"}}) })
+	req, _ := http.NewRequest(http.MethodGet, "/", nil)
+	cache, _ := table.shouldCache(req)
+	assert.True(t, cache)
 }

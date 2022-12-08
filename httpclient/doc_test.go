@@ -1,16 +1,8 @@
 package httpclient_test
 
-import (
-	"fmt"
-	"github.com/clambin/go-common/httpclient"
-	"github.com/prometheus/client_golang/prometheus"
-	"io"
-	"net/http"
-	"time"
-)
-
+/*
 func ExampleInstrumentedClient() {
-	metrics := httpclient.NewMetrics("foo", "bar")
+	metrics := httpclient.newMetrics("foo", "bar")
 	prometheus.DefaultRegisterer.MustRegister(metrics)
 
 	c := httpclient.InstrumentedClient{
@@ -27,12 +19,12 @@ func ExampleInstrumentedClient() {
 }
 
 func ExampleCacher() {
-	metrics := httpclient.NewMetrics("foo", "bar")
+	metrics := httpclient.newMetrics("foo", "bar")
 	prometheus.DefaultRegisterer.MustRegister(metrics)
 
 	table := []httpclient.CacheTableEntry{
 		{
-			Endpoint: "/foo/.+",
+			Path: "/foo/.+",
 			IsRegExp: true,
 			Expiry:   5 * time.Second,
 		},
@@ -47,3 +39,4 @@ func ExampleCacher() {
 		_ = resp.Body.Close()
 	}
 }
+*/

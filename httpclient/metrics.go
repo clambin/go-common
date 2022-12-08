@@ -4,43 +4,56 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Metrics contains Prometheus metrics to capture during API calls. Each metric is expected to have two labels:
-// the first will contain the application issuing the request. The second will contain the endpoint (i.e. Path) of the request.
-type Metrics struct {
+// RoundTripperMetrics contains Prometheus metrics to capture during API calls. Each metric is expected to have two labels:
+// the first will contain the application issuing the request. The second will contain the Path of the request.
+type RoundTripperMetrics struct {
 	latency *prometheus.SummaryVec // measures latency of an API call
 	errors  *prometheus.CounterVec // measures any errors returned by an API call
+	cache   *prometheus.CounterVec // measures number of times the cache has been consulted
+	hits    *prometheus.CounterVec // measures the number of times the cache was used
 }
 
-// NewMetrics creates a standard set of Prometheus metrics to capture during API calls.
-func NewMetrics(namespace, subsystem string) *Metrics {
-	return &Metrics{
+func newMetrics(namespace, subsystem, application string) *RoundTripperMetrics {
+	return &RoundTripperMetrics{
 		latency: prometheus.NewSummaryVec(prometheus.SummaryOpts{
-			Name: prometheus.BuildFQName(namespace, subsystem, "api_latency"),
-			Help: "latency of Reporter API calls",
-		}, []string{"application", "endpoint", "method"}),
+			Name:        prometheus.BuildFQName(namespace, subsystem, "api_latency"),
+			Help:        "latency of Reporter API calls",
+			ConstLabels: map[string]string{"application": application},
+		}, []string{"path", "method"}),
 		errors: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: prometheus.BuildFQName(namespace, subsystem, "api_errors_total"),
-			Help: "Number of failed Reporter API calls",
-		}, []string{"application", "endpoint", "method"}),
+			Name:        prometheus.BuildFQName(namespace, subsystem, "api_errors_total"),
+			Help:        "Number of failed Reporter API calls",
+			ConstLabels: map[string]string{"application": application},
+		}, []string{"path", "method"}),
+		cache: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        prometheus.BuildFQName(namespace, subsystem, "cache_total"),
+			Help:        "Number of times the cache was consulted",
+			ConstLabels: map[string]string{"application": application},
+		}, []string{"path", "method"}),
+		hits: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        prometheus.BuildFQName(namespace, subsystem, "cache_hit_total"),
+			Help:        "Number of times the cache was used",
+			ConstLabels: map[string]string{"application": application},
+		}, []string{"path", "method"}),
 	}
 }
 
-var _ prometheus.Collector = &Metrics{}
+var _ prometheus.Collector = &RoundTripperMetrics{}
 
-// Describe implements the prometheus.Collector interface so clients can register Metrics as a whole
-func (pm *Metrics) Describe(ch chan<- *prometheus.Desc) {
+// Describe implements the prometheus.Collector interface so clients can register RoundTripperMetrics as a whole
+func (pm *RoundTripperMetrics) Describe(ch chan<- *prometheus.Desc) {
 	pm.latency.Describe(ch)
 	pm.errors.Describe(ch)
 }
 
-// Collect implements the prometheus.Collector interface so clients can register Metrics as a whole
-func (pm *Metrics) Collect(ch chan<- prometheus.Metric) {
+// Collect implements the prometheus.Collector interface so clients can register RoundTripperMetrics as a whole
+func (pm *RoundTripperMetrics) Collect(ch chan<- prometheus.Metric) {
 	pm.latency.Collect(ch)
 	pm.errors.Collect(ch)
 }
 
-func (pm *Metrics) reportErrors(err error, labelValues ...string) {
-	if pm == nil || pm.errors == nil {
+func (pm *RoundTripperMetrics) reportErrors(err error, labelValues ...string) {
+	if pm == nil {
 		return
 	}
 
@@ -51,9 +64,19 @@ func (pm *Metrics) reportErrors(err error, labelValues ...string) {
 	pm.errors.WithLabelValues(labelValues...).Add(value)
 }
 
-func (pm *Metrics) makeLatencyTimer(labelValues ...string) (timer *prometheus.Timer) {
-	if pm != nil && pm.latency != nil {
+func (pm *RoundTripperMetrics) makeLatencyTimer(labelValues ...string) (timer *prometheus.Timer) {
+	if pm != nil {
 		timer = prometheus.NewTimer(pm.latency.WithLabelValues(labelValues...))
 	}
 	return
+}
+
+func (pm *RoundTripperMetrics) reportCache(hit bool, labelvalues ...string) {
+	if pm == nil {
+		return
+	}
+	pm.cache.WithLabelValues(labelvalues...).Inc()
+	if hit {
+		pm.cache.WithLabelValues(labelvalues...).Inc()
+	}
 }

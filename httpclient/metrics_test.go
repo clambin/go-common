@@ -12,17 +12,12 @@ import (
 )
 
 func TestClientMetrics_MakeLatencyTimer(t *testing.T) {
-	cfg := &Metrics{}
-
-	// makeLatencyTimer returns nil if no latency metric is set
-	assert.Nil(t, cfg.makeLatencyTimer())
-
 	r := prometheus.NewRegistry()
-	cfg = NewMetrics("foo", "")
+	cfg := newMetrics("foo", "", "test")
 	r.MustRegister(cfg)
 
 	// collect metrics
-	timer := cfg.makeLatencyTimer("foo", "/bar", http.MethodGet)
+	timer := cfg.makeLatencyTimer("/bar", http.MethodGet)
 	require.NotNil(t, timer)
 	time.Sleep(10 * time.Millisecond)
 	timer.ObserveDuration()
@@ -44,36 +39,23 @@ func TestClientMetrics_MakeLatencyTimer(t *testing.T) {
 }
 
 func TestClientMetrics_ReportErrors(t *testing.T) {
-	cfg := &Metrics{}
-
-	// reportErrors doesn't crash when no errors metric is set
-	cfg.reportErrors(nil)
-
 	r := prometheus.NewRegistry()
-	cfg = NewMetrics("bar", "")
+	cfg := newMetrics("bar", "", "test")
 	r.MustRegister(cfg)
 
 	// collect metrics
-	cfg.reportErrors(nil, "foo", "/bar", http.MethodGet)
+	cfg.reportErrors(nil, "/bar", http.MethodGet)
 
 	// do a measurement
 	count := getErrorMetrics(t, r, "bar_")
 	assert.Equal(t, map[string]float64{"/bar": 0}, count)
 
 	// record an error
-	cfg.reportErrors(errors.New("some error"), "foo", "/bar", http.MethodGet)
+	cfg.reportErrors(errors.New("some error"), "/bar", http.MethodGet)
 
 	// counter should now be 1
 	count = getErrorMetrics(t, r, "bar_")
 	assert.Equal(t, map[string]float64{"/bar": 1}, count)
-}
-
-func TestClientMetrics_Nil(t *testing.T) {
-	cfg := Metrics{}
-
-	timer := cfg.makeLatencyTimer("snafu")
-	assert.Nil(t, timer)
-	cfg.reportErrors(nil, "foo")
 }
 
 func getErrorMetrics(t *testing.T, g prometheus.Gatherer, prefix string) map[string]float64 {
@@ -86,7 +68,12 @@ func getErrorMetrics(t *testing.T, g prometheus.Gatherer, prefix string) map[str
 		if *entry.Name == prefix+"api_errors_total" {
 			require.Equal(t, pcg.MetricType_COUNTER, *entry.Type)
 			for _, metric := range entry.Metric {
-				counters[*metric.Label[1].Value] = *metric.Counter.Value
+				for _, label := range metric.GetLabel() {
+					if *label.Name == "path" {
+						counters[*label.Value] = *metric.Counter.Value
+						break
+					}
+				}
 			}
 		}
 	}
