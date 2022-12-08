@@ -1,42 +1,30 @@
 package slackbot
 
 import (
-	"github.com/clambin/go-common/slackbot/client/mocks"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestParseText(t *testing.T) {
-	var output []string
-
-	output = tokenizeText("Hello world")
-	if assert.Len(t, output, 2) {
-		assert.Equal(t, "Hello", output[0])
-		assert.Equal(t, "world", output[1])
+	tests := []struct {
+		input  string
+		output []string
+	}{
+		{input: `Hello world`, output: []string{"Hello", "world"}},
+		{input: `He said "Hello world"`, output: []string{"He", "said", "Hello world"}},
+		{input: `"Hello world"`, output: []string{"Hello world"}},
+		{input: `”Hello world”`, output: []string{"Hello world"}},
+		{input: `""`, output: []string{""}},
+		{input: `"`},
+		{input: ``},
 	}
 
-	output = tokenizeText("He said \"Hello world\"")
-	if assert.Len(t, output, 3) {
-		assert.Equal(t, "He", output[0])
-		assert.Equal(t, "said", output[1])
-		assert.Equal(t, "Hello world", output[2])
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			output := tokenizeText(tt.input)
+			assert.Equal(t, tt.output, output)
+		})
 	}
-
-	output = tokenizeText("")
-	assert.Len(t, output, 0)
-
-	output = tokenizeText("\"Hello world\"")
-	if assert.Len(t, output, 1) {
-		assert.Equal(t, "Hello world", output[0])
-	}
-
-	output = tokenizeText("\"\"")
-	if assert.Len(t, output, 1) {
-		assert.Equal(t, "", output[0])
-	}
-
-	output = tokenizeText("\"")
-	assert.Len(t, output, 0)
 }
 
 func TestParseCommand(t *testing.T) {
@@ -78,9 +66,7 @@ func TestParseCommand(t *testing.T) {
 		},
 	}
 
-	c := mocks.NewSlackClient(t)
-	c.On("GetUserID").Return("123", nil)
-	b := SlackBot{SlackClient: c}
+	b := SlackBot{SlackClient: newSlackClient("123", nil)}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
