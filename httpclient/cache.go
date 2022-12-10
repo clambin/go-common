@@ -9,12 +9,13 @@ import (
 	"time"
 )
 
-// Cache will cache calls based in the provided CacheTable
+// Cache caches HTTP responses based in the provided CacheTable
 type Cache struct {
 	Table CacheTable
 	cache cache.Cacher[string, []byte]
 }
 
+// NewCache creates a new Cache
 func NewCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) *Cache {
 	c := Cache{
 		Table: table,
@@ -24,6 +25,7 @@ func NewCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) *C
 	return &c
 }
 
+// Get retrieves an HTTP response from the cache
 func (c *Cache) Get(req *http.Request) (string, *http.Response, bool, error) {
 	key := getCacheKey(req)
 	body, found := c.cache.Get(key)
@@ -37,6 +39,7 @@ func (c *Cache) Get(req *http.Request) (string, *http.Response, bool, error) {
 	return key, resp, found, err
 }
 
+// Put stores an HTTP response in the cache
 func (c *Cache) Put(key string, req *http.Request, resp *http.Response) error {
 	shouldCache, expiry := c.shouldCache(req)
 	if !shouldCache {
@@ -44,7 +47,6 @@ func (c *Cache) Put(key string, req *http.Request, resp *http.Response) error {
 	}
 
 	buf, err := httputil.DumpResponse(resp, true)
-
 	if err == nil {
 		c.cache.AddWithExpiry(key, buf, expiry)
 	}

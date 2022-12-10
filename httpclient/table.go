@@ -29,17 +29,16 @@ func (c CacheTable) compile() {
 	}
 }
 
-// CacheTableEntry contains a single endpoint that should be cached. If the Path is a regular expression, IsRegExp must be set.
+// CacheTableEntry contains a single endpoint that should be cached. If the Path is a regular expression, IsRegExp must be true.
 type CacheTableEntry struct {
 	// Path is the URL Path for requests whose responses should be cached.
-	// Can be a literal path, or a regular expression. In the latter case,
-	// set IsRegExp to true
+	// Can be a literal path, or a regular expression. In the latter case, set IsRegExp to true
 	Path string
 	// Methods is the list of HTTP Methods for which requests the response should be cached.
 	// If empty, requests for any method will be cached.
 	Methods []string
-	// IsRegExp indicated the Path is a regular expression.
-	// Note: CacheTableEntry will panic if Path does not contain a valid regular expression.
+	// IsRegExp indicates if the Path is a regular expression.
+	// CacheTableEntry will panic if Path does not contain a valid regular expression.
 	IsRegExp bool
 	// Expiry indicates how long a response should be cached.
 	Expiry         time.Duration
@@ -82,8 +81,7 @@ func (entry *CacheTableEntry) compile() {
 		return
 	}
 	var err error
-	entry.compiledRegExp, err = regexp.Compile(entry.Path)
-	if err != nil {
+	if entry.compiledRegExp, err = regexp.Compile(entry.Path); err != nil {
 		panic(fmt.Errorf("cacheTable: invalid regexp '%s': %w", entry.Path, err))
 	}
 }

@@ -46,13 +46,13 @@ func TestCacher_Put_Get(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest(http.MethodGet, tt.url, nil)
-			key, resp, found, err := c.Get(req)
+			key, _, found, err := c.Get(req)
 			require.NoError(t, err)
 			assert.Equal(t, tt.found, found)
 			assert.NotEmpty(t, key)
 
 			if !tt.found {
-				resp = &http.Response{
+				resp := &http.Response{
 					Status:        "OK",
 					StatusCode:    http.StatusOK,
 					Body:          io.NopCloser(bytes.NewBufferString("Hello")),
@@ -61,6 +61,7 @@ func TestCacher_Put_Get(t *testing.T) {
 				}
 
 				err = c.Put(key, req, resp)
+				require.NoError(t, err)
 			}
 		})
 	}

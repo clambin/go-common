@@ -26,12 +26,12 @@ func newMetrics(namespace, subsystem, application string) *RoundTripperMetrics {
 			ConstLabels: map[string]string{"application": application},
 		}, []string{"path", "method"}),
 		cache: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        prometheus.BuildFQName(namespace, subsystem, "cache_total"),
+			Name:        prometheus.BuildFQName(namespace, subsystem, "api_cache_total"),
 			Help:        "Number of times the cache was consulted",
 			ConstLabels: map[string]string{"application": application},
 		}, []string{"path", "method"}),
 		hits: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        prometheus.BuildFQName(namespace, subsystem, "cache_hit_total"),
+			Name:        prometheus.BuildFQName(namespace, subsystem, "api_cache_hit_total"),
 			Help:        "Number of times the cache was used",
 			ConstLabels: map[string]string{"application": application},
 		}, []string{"path", "method"}),
@@ -44,12 +44,16 @@ var _ prometheus.Collector = &RoundTripperMetrics{}
 func (pm *RoundTripperMetrics) Describe(ch chan<- *prometheus.Desc) {
 	pm.latency.Describe(ch)
 	pm.errors.Describe(ch)
+	pm.cache.Describe(ch)
+	pm.hits.Describe(ch)
 }
 
 // Collect implements the prometheus.Collector interface so clients can register RoundTripperMetrics as a whole
 func (pm *RoundTripperMetrics) Collect(ch chan<- prometheus.Metric) {
 	pm.latency.Collect(ch)
 	pm.errors.Collect(ch)
+	pm.cache.Collect(ch)
+	pm.hits.Collect(ch)
 }
 
 func (pm *RoundTripperMetrics) reportErrors(err error, labelValues ...string) {
@@ -71,12 +75,12 @@ func (pm *RoundTripperMetrics) makeLatencyTimer(labelValues ...string) (timer *p
 	return
 }
 
-func (pm *RoundTripperMetrics) reportCache(hit bool, labelvalues ...string) {
+func (pm *RoundTripperMetrics) reportCache(hit bool, labelValues ...string) {
 	if pm == nil {
 		return
 	}
-	pm.cache.WithLabelValues(labelvalues...).Inc()
+	pm.cache.WithLabelValues(labelValues...).Inc()
 	if hit {
-		pm.cache.WithLabelValues(labelvalues...).Inc()
+		pm.hits.WithLabelValues(labelValues...).Inc()
 	}
 }

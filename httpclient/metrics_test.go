@@ -1,8 +1,10 @@
 package httpclient
 
 import (
+	"bytes"
 	"errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	pcg "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,37 +47,38 @@ func TestClientMetrics_ReportErrors(t *testing.T) {
 
 	// collect metrics
 	cfg.reportErrors(nil, "/bar", http.MethodGet)
-
-	// do a measurement
-	count := getErrorMetrics(t, r, "bar_")
-	assert.Equal(t, map[string]float64{"/bar": 0}, count)
-
-	// record an error
 	cfg.reportErrors(errors.New("some error"), "/bar", http.MethodGet)
 
-	// counter should now be 1
-	count = getErrorMetrics(t, r, "bar_")
-	assert.Equal(t, map[string]float64{"/bar": 1}, count)
+	err := testutil.GatherAndCompare(r, bytes.NewBufferString(`# HELP bar_api_errors_total Number of failed Reporter API calls
+# TYPE bar_api_errors_total counter
+bar_api_errors_total{application="test",method="GET",path="/bar"} 1
+`))
+	assert.NoError(t, err)
+
 }
 
-func getErrorMetrics(t *testing.T, g prometheus.Gatherer, prefix string) map[string]float64 {
-	t.Helper()
+func TestClientMetrics_Cache(t *testing.T) {
+	r := prometheus.NewRegistry()
+	cfg := newMetrics("foo", "", "test")
+	r.MustRegister(cfg)
 
-	counters := make(map[string]float64)
-	m, err := g.Gather()
-	require.NoError(t, err)
-	for _, entry := range m {
-		if *entry.Name == prefix+"api_errors_total" {
-			require.Equal(t, pcg.MetricType_COUNTER, *entry.Type)
-			for _, metric := range entry.Metric {
-				for _, label := range metric.GetLabel() {
-					if *label.Name == "path" {
-						counters[*label.Value] = *metric.Counter.Value
-						break
-					}
-				}
-			}
-		}
-	}
-	return counters
+	cfg.reportCache(false, "/bar", http.MethodGet)
+
+	err := testutil.GatherAndCompare(r, bytes.NewBufferString(`# HELP foo_api_cache_total Number of times the cache was consulted
+# TYPE foo_api_cache_total counter
+foo_api_cache_total{application="test",method="GET",path="/bar"} 1
+`))
+	assert.NoError(t, err)
+
+	cfg.reportCache(true, "/bar", http.MethodGet)
+
+	err = testutil.GatherAndCompare(r, bytes.NewBufferString(`# HELP foo_api_cache_hit_total Number of times the cache was used
+# TYPE foo_api_cache_hit_total counter
+foo_api_cache_hit_total{application="test",method="GET",path="/bar"} 1
+# HELP foo_api_cache_total Number of times the cache was consulted
+# TYPE foo_api_cache_total counter
+foo_api_cache_total{application="test",method="GET",path="/bar"} 2
+`))
+	assert.NoError(t, err)
+
 }

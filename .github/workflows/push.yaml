@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - httpserver
+      - httpclient
+      - roundtripper
 
 jobs:
   test:
