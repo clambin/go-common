@@ -7,14 +7,15 @@ import (
 	"github.com/slack-go/slack"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // SlackBot connects to Slack through Slack's Bot integration.
 type SlackBot struct {
 	client.SlackClient
 	name     string
-	channels []string
 	commands *commands
+	lock     sync.RWMutex
 }
 
 // CommandFunc signature for command callback functions
@@ -45,10 +46,6 @@ func (b *SlackBot) Register(name string, command CommandFunc) {
 
 // Run the slackbot
 func (b *SlackBot) Run(ctx context.Context) (err error) {
-	if b.channels, err = b.SlackClient.GetChannels(); err != nil {
-		return err
-	}
-
 	go b.SlackClient.Run(ctx)
 
 	for running := true; running; {
@@ -68,13 +65,14 @@ func (b *SlackBot) Run(ctx context.Context) (err error) {
 	return
 }
 
-func (b *SlackBot) Send(channel string, attachments []slack.Attachment) error {
-	var channels = b.channels
-	if channel != "" {
-		channels = []string{channel}
+func (b *SlackBot) Send(channel string, attachments []slack.Attachment) (err error) {
+	channels := []string{channel}
+	if channel == "" {
+		if channels, err = b.GetChannels(); err != nil {
+			return err
+		}
 	}
 
-	var err error
 	for _, c := range channels {
 		if err = b.SlackClient.Send(c, attachments); err != nil {
 			break
@@ -97,13 +95,13 @@ func (b *SlackBot) parseCommand(input string) (command string, args []string) {
 }
 
 func tokenizeText(input string) (output []string) {
-	cleanInput := strings.Replace(input, "“", "\"", -1)
-	// TODO: why are we doing this twice?
-	cleanInput = strings.Replace(cleanInput, "”", "\"", -1)
+	cleanInput := input
+	for _, quote := range []string{"“", "”", "'"} {
+		cleanInput = strings.ReplaceAll(cleanInput, quote, "\"")
+	}
 	r := regexp.MustCompile(`[^\s"]+|"([^"]*)"`)
 	output = r.FindAllString(cleanInput, -1)
 
-	log.WithField("parsed", output).Debug("parsed slack input")
 	for index, word := range output {
 		output[index] = strings.Trim(word, "\"")
 	}

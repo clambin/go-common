@@ -1,8 +1,10 @@
 package httpclient
 
 import (
+	"bytes"
 	"errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	pcg "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,17 +14,12 @@ import (
 )
 
 func TestClientMetrics_MakeLatencyTimer(t *testing.T) {
-	cfg := &Metrics{}
-
-	// makeLatencyTimer returns nil if no latency metric is set
-	assert.Nil(t, cfg.makeLatencyTimer())
-
 	r := prometheus.NewRegistry()
-	cfg = NewMetrics("foo", "")
+	cfg := newMetrics("foo", "", "test")
 	r.MustRegister(cfg)
 
 	// collect metrics
-	timer := cfg.makeLatencyTimer("foo", "/bar", http.MethodGet)
+	timer := cfg.makeLatencyTimer("/bar", http.MethodGet)
 	require.NotNil(t, timer)
 	time.Sleep(10 * time.Millisecond)
 	timer.ObserveDuration()
@@ -44,51 +41,44 @@ func TestClientMetrics_MakeLatencyTimer(t *testing.T) {
 }
 
 func TestClientMetrics_ReportErrors(t *testing.T) {
-	cfg := &Metrics{}
-
-	// reportErrors doesn't crash when no errors metric is set
-	cfg.reportErrors(nil)
-
 	r := prometheus.NewRegistry()
-	cfg = NewMetrics("bar", "")
+	cfg := newMetrics("bar", "", "test")
 	r.MustRegister(cfg)
 
 	// collect metrics
-	cfg.reportErrors(nil, "foo", "/bar", http.MethodGet)
+	cfg.reportErrors(nil, "/bar", http.MethodGet)
+	cfg.reportErrors(errors.New("some error"), "/bar", http.MethodGet)
 
-	// do a measurement
-	count := getErrorMetrics(t, r, "bar_")
-	assert.Equal(t, map[string]float64{"/bar": 0}, count)
+	err := testutil.GatherAndCompare(r, bytes.NewBufferString(`# HELP bar_api_errors_total Number of failed Reporter API calls
+# TYPE bar_api_errors_total counter
+bar_api_errors_total{application="test",method="GET",path="/bar"} 1
+`))
+	assert.NoError(t, err)
 
-	// record an error
-	cfg.reportErrors(errors.New("some error"), "foo", "/bar", http.MethodGet)
-
-	// counter should now be 1
-	count = getErrorMetrics(t, r, "bar_")
-	assert.Equal(t, map[string]float64{"/bar": 1}, count)
 }
 
-func TestClientMetrics_Nil(t *testing.T) {
-	cfg := Metrics{}
+func TestClientMetrics_Cache(t *testing.T) {
+	r := prometheus.NewRegistry()
+	cfg := newMetrics("foo", "", "test")
+	r.MustRegister(cfg)
 
-	timer := cfg.makeLatencyTimer("snafu")
-	assert.Nil(t, timer)
-	cfg.reportErrors(nil, "foo")
-}
+	cfg.reportCache(false, "/bar", http.MethodGet)
 
-func getErrorMetrics(t *testing.T, g prometheus.Gatherer, prefix string) map[string]float64 {
-	t.Helper()
+	err := testutil.GatherAndCompare(r, bytes.NewBufferString(`# HELP foo_api_cache_total Number of times the cache was consulted
+# TYPE foo_api_cache_total counter
+foo_api_cache_total{application="test",method="GET",path="/bar"} 1
+`))
+	assert.NoError(t, err)
 
-	counters := make(map[string]float64)
-	m, err := g.Gather()
-	require.NoError(t, err)
-	for _, entry := range m {
-		if *entry.Name == prefix+"api_errors_total" {
-			require.Equal(t, pcg.MetricType_COUNTER, *entry.Type)
-			for _, metric := range entry.Metric {
-				counters[*metric.Label[1].Value] = *metric.Counter.Value
-			}
-		}
-	}
-	return counters
+	cfg.reportCache(true, "/bar", http.MethodGet)
+
+	err = testutil.GatherAndCompare(r, bytes.NewBufferString(`# HELP foo_api_cache_hit_total Number of times the cache was used
+# TYPE foo_api_cache_hit_total counter
+foo_api_cache_hit_total{application="test",method="GET",path="/bar"} 1
+# HELP foo_api_cache_total Number of times the cache was consulted
+# TYPE foo_api_cache_total counter
+foo_api_cache_total{application="test",method="GET",path="/bar"} 2
+`))
+	assert.NoError(t, err)
+
 }
