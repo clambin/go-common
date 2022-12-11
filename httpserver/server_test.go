@@ -1,6 +1,7 @@
 package httpserver_test
 
 import (
+	"errors"
 	"fmt"
 	"github.com/clambin/go-common/httpserver"
 	"github.com/gorilla/mux"
@@ -131,19 +132,19 @@ func TestServer_ServeHTTP(t *testing.T) {
 func TestServer_ServerHTTP_WithMetrics(t *testing.T) {
 	testCases := []struct {
 		name         string
-		metrics      func() httpserver.Metrics
+		metrics      httpserver.WithMetrics
 		evalCount    func(t *testing.T, r prometheus.Gatherer)
 		evalDuration func(t *testing.T, r prometheus.Gatherer)
 	}{
 		{
-			name:         "SLOMetrics",
-			metrics:      func() httpserver.Metrics { return httpserver.NewSLOMetrics("foobar", nil) },
+			name:         "histogram",
+			metrics:      httpserver.WithMetrics{MetricsType: httpserver.Histogram, Application: "foobar"},
 			evalCount:    evalRequestsCounter,
 			evalDuration: evalDurationHistogram,
 		},
 		{
-			name:         "AvgMetrics",
-			metrics:      func() httpserver.Metrics { return httpserver.NewAvgMetrics("foobar") },
+			name:         "summary",
+			metrics:      httpserver.WithMetrics{MetricsType: httpserver.Summary, Application: "foobar"},
 			evalCount:    evalRequestsCounter,
 			evalDuration: evalDurationSummary,
 		},
@@ -152,9 +153,6 @@ func TestServer_ServerHTTP_WithMetrics(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			r := prometheus.NewRegistry()
-			m := tt.metrics()
-			r.MustRegister(m)
 			s, err := httpserver.New(
 				httpserver.WithHandlers{Handlers: []httpserver.Handler{{
 					Path: "/foo",
@@ -162,9 +160,11 @@ func TestServer_ServerHTTP_WithMetrics(t *testing.T) {
 						_, _ = w.Write([]byte("OK"))
 					}),
 				}}},
-				httpserver.WithMetrics{Metrics: m},
+				tt.metrics,
 			)
 			require.NoError(t, err)
+			r := prometheus.NewRegistry()
+			r.MustRegister(s)
 
 			req, _ := http.NewRequest(http.MethodGet, "/foo", nil)
 			resp := httptest.NewRecorder()
@@ -186,7 +186,7 @@ func TestServer_ServerHTTP_WithMetrics(t *testing.T) {
 
 }
 
-func TestServer_Run(t *testing.T) {
+func TestServer_Serve(t *testing.T) {
 	s, err := httpserver.New(httpserver.WithHandlers{Handlers: []httpserver.Handler{{
 		Path: "/",
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -199,8 +199,8 @@ func TestServer_Run(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err2 := s.Run()
-		require.NoError(t, err2)
+		err2 := s.Serve()
+		require.True(t, errors.Is(err2, http.ErrServerClosed))
 	}()
 
 	assert.Eventually(t, func() bool {

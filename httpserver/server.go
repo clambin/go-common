@@ -2,11 +2,12 @@ package httpserver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -14,19 +15,21 @@ import (
 type Server struct {
 	port     int
 	handlers []Handler
-	metrics  Metrics
+	metrics  *metrics
 	listener net.Listener
 	server   *http.Server
 }
 
-// Handler contains an endpoint to be registered in the Server's HTTP server
+var _ prometheus.Collector = &Server{}
+
+// Handler contains a path to be registered in the Server's HTTP server
 type Handler struct {
-	// Path of the endpoint (e.g. "/health"). Can be any path that's valid for gorilla/mux router's Path().
+	// Path of the endpoint (e.g. "/health"). Can be any path that's valid for gorilla/mux router's Path() method.
 	Path string
-	// Handler that implements the endpoint
-	Handler http.Handler
-	// Methods that the handler should support. If empty, defaults to http.MethodGet
+	// Methods that the handler should support. If empty, defaults to http.MethodGet.
 	Methods []string
+	// Handler that implements the endpoint.
+	Handler http.Handler
 }
 
 // New returns a Server with the specified options
@@ -55,13 +58,9 @@ func New(options ...Option) (s *Server, err error) {
 	return
 }
 
-// Run starts the HTTP server
-func (s *Server) Run() error {
-	err := s.server.Serve(s.listener)
-	if errors.Is(err, http.ErrServerClosed) {
-		err = nil
-	}
-	return err
+// Serve starts the HTTP server. When the server is shut down, it returns http.ErrServerClosed.
+func (s *Server) Serve() error {
+	return s.server.Serve(s.listener)
 }
 
 // Shutdown performs a graceful shutdown of the HTTP server
@@ -87,15 +86,29 @@ func (s *Server) handle(next http.Handler) http.Handler {
 		route := mux.CurrentRoute(r)
 		path, _ := route.GetPathTemplate()
 
-		obs := s.metrics.GetRequestDurationMetric(r.Method, path)
+		// handle is only called if s.metrics != nil
+		obs := s.metrics.duration.With(r.Method, path)
 
 		start := time.Now()
 		next.ServeHTTP(lrw, r)
 
-		counter := s.metrics.GetRequestCountMetric(r.Method, path, lrw.statusCode)
-		counter.Inc()
+		s.metrics.requests.WithLabelValues(r.Method, path, strconv.Itoa(lrw.statusCode)).Inc()
 		obs.Observe(time.Since(start).Seconds())
 	})
+}
+
+// Describe implements the prometheus.Collector interface
+func (s *Server) Describe(descs chan<- *prometheus.Desc) {
+	if s.metrics != nil {
+		s.metrics.Describe(descs)
+	}
+}
+
+// Collect implements the prometheus.Collector interface
+func (s *Server) Collect(c chan<- prometheus.Metric) {
+	if s.metrics != nil {
+		s.metrics.Collect(c)
+	}
 }
 
 type loggingResponseWriter struct {
