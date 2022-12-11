@@ -4,17 +4,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// RoundTripperMetrics contains Prometheus metrics to capture during API calls. Each metric is expected to have two labels:
+// roundTripperMetrics contains Prometheus metrics to capture during API calls. Each metric is expected to have two labels:
 // the first will contain the application issuing the request. The second will contain the Path of the request.
-type RoundTripperMetrics struct {
+type roundTripperMetrics struct {
 	latency *prometheus.SummaryVec // measures latency of an API call
 	errors  *prometheus.CounterVec // measures any errors returned by an API call
 	cache   *prometheus.CounterVec // measures number of times the cache has been consulted
 	hits    *prometheus.CounterVec // measures the number of times the cache was used
 }
 
-func newMetrics(namespace, subsystem, application string) *RoundTripperMetrics {
-	return &RoundTripperMetrics{
+func newMetrics(namespace, subsystem, application string) *roundTripperMetrics {
+	return &roundTripperMetrics{
 		latency: prometheus.NewSummaryVec(prometheus.SummaryOpts{
 			Name:        prometheus.BuildFQName(namespace, subsystem, "api_latency"),
 			Help:        "latency of Reporter API calls",
@@ -38,25 +38,25 @@ func newMetrics(namespace, subsystem, application string) *RoundTripperMetrics {
 	}
 }
 
-var _ prometheus.Collector = &RoundTripperMetrics{}
+var _ prometheus.Collector = &roundTripperMetrics{}
 
-// Describe implements the prometheus.Collector interface so clients can register RoundTripperMetrics as a whole
-func (pm *RoundTripperMetrics) Describe(ch chan<- *prometheus.Desc) {
+// Describe implements the prometheus.Collector interface so clients can register roundTripperMetrics as a whole
+func (pm *roundTripperMetrics) Describe(ch chan<- *prometheus.Desc) {
 	pm.latency.Describe(ch)
 	pm.errors.Describe(ch)
 	pm.cache.Describe(ch)
 	pm.hits.Describe(ch)
 }
 
-// Collect implements the prometheus.Collector interface so clients can register RoundTripperMetrics as a whole
-func (pm *RoundTripperMetrics) Collect(ch chan<- prometheus.Metric) {
+// Collect implements the prometheus.Collector interface so clients can register roundTripperMetrics as a whole
+func (pm *roundTripperMetrics) Collect(ch chan<- prometheus.Metric) {
 	pm.latency.Collect(ch)
 	pm.errors.Collect(ch)
 	pm.cache.Collect(ch)
 	pm.hits.Collect(ch)
 }
 
-func (pm *RoundTripperMetrics) reportErrors(err error, labelValues ...string) {
+func (pm *roundTripperMetrics) reportErrors(err error, labelValues ...string) {
 	if pm == nil {
 		return
 	}
@@ -68,14 +68,14 @@ func (pm *RoundTripperMetrics) reportErrors(err error, labelValues ...string) {
 	pm.errors.WithLabelValues(labelValues...).Add(value)
 }
 
-func (pm *RoundTripperMetrics) makeLatencyTimer(labelValues ...string) (timer *prometheus.Timer) {
+func (pm *roundTripperMetrics) makeLatencyTimer(labelValues ...string) (timer *prometheus.Timer) {
 	if pm != nil {
 		timer = prometheus.NewTimer(pm.latency.WithLabelValues(labelValues...))
 	}
 	return
 }
 
-func (pm *RoundTripperMetrics) reportCache(hit bool, labelValues ...string) {
+func (pm *roundTripperMetrics) reportCache(hit bool, labelValues ...string) {
 	if pm == nil {
 		return
 	}

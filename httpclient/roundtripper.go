@@ -10,7 +10,7 @@ import (
 // It implements the http.RoundTripper interface.
 type RoundTripper struct {
 	roundTripper http.RoundTripper
-	metrics      *RoundTripperMetrics
+	metrics      *roundTripperMetrics
 	cache        *Cache
 }
 
@@ -41,7 +41,7 @@ func (r *RoundTripper) RoundTrip(request *http.Request) (response *http.Response
 	path := request.URL.Path
 	timer := r.metrics.makeLatencyTimer(path, request.Method)
 
-	response, err = http.DefaultTransport.RoundTrip(request)
+	response, err = r.roundTripper.RoundTrip(request)
 
 	if timer != nil {
 		timer.ObserveDuration()
@@ -102,7 +102,7 @@ func (o WithCache) apply(r *RoundTripper) {
 	r.cache = NewCache(o.Table, o.DefaultExpiry, o.CleanupInterval)
 }
 
-// WithRoundTripper assigns a final RoundTripper to the chain. Use this to control the final HTTP exchange's behaviour
+// WithRoundTripper assigns a final RoundTripper of the chain. Use this to control the final HTTP exchange's behaviour
 // (e.g. using a proxy to make the HTTP call).
 type WithRoundTripper struct {
 	RoundTripper http.RoundTripper

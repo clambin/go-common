@@ -70,33 +70,24 @@ func TestRoundTripper_Collect(t *testing.T) {
 	r := httpclient.NewRoundTripper(
 		httpclient.WithCache{},
 		httpclient.WithRoundTripperMetrics{Application: "foo"},
+		httpclient.WithRoundTripper{RoundTripper: &stubbedRoundTripper{}},
 	)
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(r)
 
 	c := &http.Client{Transport: r}
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.URL.Path != "/" {
-			http.Error(w, "invalid path", http.StatusNotFound)
-			return
-		}
-		_, _ = w.Write([]byte("Hello"))
+		http.Error(w, "this is not the server you're looking for", http.StatusNotFound)
 	}))
 	defer s.Close()
 
-	for i := 0; i < 2; i++ {
-		req, _ := http.NewRequest(http.MethodGet, s.URL+"/", nil)
-		resp, err := c.Do(req)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Equal(t, "Hello", string(body))
-		_ = resp.Body.Close()
-	}
-
-	req, _ := http.NewRequest(http.MethodGet, s.URL+"/invalid", nil)
+	req, _ := http.NewRequest(http.MethodGet, s.URL+"/", nil)
 	resp, err := c.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	req, _ = http.NewRequest(http.MethodGet, s.URL+"/invalid", nil)
+	resp, err = c.Do(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
@@ -116,4 +107,14 @@ func TestRoundTripper_Collect(t *testing.T) {
 			t.Log(metric.GetName())
 		}
 	}
+}
+
+type stubbedRoundTripper struct{}
+
+func (r *stubbedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	statusCode := http.StatusNotFound
+	if req.URL.Path == "/" {
+		statusCode = http.StatusOK
+	}
+	return &http.Response{StatusCode: statusCode}, nil
 }
