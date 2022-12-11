@@ -1,18 +1,17 @@
 package httpserver_test
 
 import (
+	"errors"
 	"github.com/clambin/go-common/httpserver"
 	"github.com/prometheus/client_golang/prometheus"
 	"net/http"
 )
 
 func Example() {
-	metrics := httpserver.NewAvgMetrics("example")
-	prometheus.MustRegister(metrics)
 	s, err := httpserver.New(
 		httpserver.WithPort{Port: 8080},
 		httpserver.WithPrometheus{},
-		httpserver.WithMetrics{Metrics: metrics},
+		httpserver.WithMetrics{Application: "example", MetricsType: httpserver.Summary},
 		httpserver.WithHandlers{Handlers: []httpserver.Handler{{
 			Path:    "/",
 			Methods: []string{http.MethodGet},
@@ -24,10 +23,11 @@ func Example() {
 	)
 
 	if err != nil {
-		err = s.Run()
+		panic(err)
 	}
-
-	if err != nil {
+	prometheus.MustRegister(s)
+	err = s.Serve()
+	if !errors.Is(err, http.ErrServerClosed) {
 		panic(err)
 	}
 }

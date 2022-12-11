@@ -2,7 +2,7 @@
 // Using this package typically involves creating a bot as follows:
 //
 //	bot := slackbot.New(botName, slackToken, commands)
-//	go bot.Run()
+//	go bot.Serve()
 //
 // Once running, the bot will listen for any commands specified on the channel and execute them. Slackbot itself
 // implements two commands: "version" (which responds with botName) and "help" (which shows all implemented commands).

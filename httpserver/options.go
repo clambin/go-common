@@ -47,9 +47,25 @@ func (o WithHandlers) apply(s *Server) {
 
 // WithMetrics will collect the specified metrics to instrument the Server's Handlers.
 type WithMetrics struct {
-	Metrics Metrics
+	Namespace   string
+	Subsystem   string
+	Application string
+	MetricsType MetricsType
+	Buckets     []float64
 }
 
+// MetricsType specifies the type of metrics to record for request duration. Use Summary if you are only interested in the average latency.
+// Use Histogram if you want to use a histogram to measure a service level indicator (eg  latency of 95% of all requests).
+type MetricsType int
+
+const (
+	// Summary measures the average duration.
+	Summary MetricsType = iota
+	// Histogram measures the latency in buckets and can be used to calculate a service level indicator. WithMetrics.Buckets
+	// specify the buckets to be used. If none are provided, prometheus.DefBuckets will be used.
+	Histogram
+)
+
 func (o WithMetrics) apply(s *Server) {
-	s.metrics = o.Metrics
+	s.metrics = newMetrics(o)
 }
