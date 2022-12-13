@@ -11,7 +11,7 @@ import (
 type RoundTripper struct {
 	roundTripper http.RoundTripper
 	metrics      *roundTripperMetrics
-	cache        *Cache
+	cache        *responseCache
 }
 
 var _ http.RoundTripper = &RoundTripper{}
@@ -31,7 +31,7 @@ func (r *RoundTripper) RoundTrip(request *http.Request) (response *http.Response
 	var cacheKey string
 	if r.cache != nil {
 		var found bool
-		cacheKey, response, found, err = r.cache.Get(request)
+		cacheKey, response, found, err = r.cache.get(request)
 		r.metrics.reportCache(found, request.URL.Path, request.Method)
 		if found || err != nil {
 			return response, err
@@ -49,7 +49,7 @@ func (r *RoundTripper) RoundTrip(request *http.Request) (response *http.Response
 	r.metrics.reportErrors(err, path, request.Method)
 
 	if err == nil && r.cache != nil {
-		err = r.cache.Put(cacheKey, request, response)
+		err = r.cache.put(cacheKey, request, response)
 	}
 
 	return response, err
@@ -99,7 +99,7 @@ type WithCache struct {
 }
 
 func (o WithCache) apply(r *RoundTripper) {
-	r.cache = NewCache(o.Table, o.DefaultExpiry, o.CleanupInterval)
+	r.cache = newCache(o.Table, o.DefaultExpiry, o.CleanupInterval)
 }
 
 // WithRoundTripper assigns a final RoundTripper of the chain. Use this to control the final HTTP exchange's behaviour
