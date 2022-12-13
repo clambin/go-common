@@ -9,38 +9,35 @@ import (
 	"time"
 )
 
-// Cache caches HTTP responses based in the provided CacheTable
-type Cache struct {
-	Table CacheTable
+type responseCache struct {
+	table CacheTable
 	cache cache.Cacher[string, []byte]
 }
 
-// NewCache creates a new Cache
-func NewCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) *Cache {
-	c := Cache{
-		Table: table,
+func newCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) *responseCache {
+	c := responseCache{
+		table: table,
 		cache: cache.New[string, []byte](defaultExpiry, cleanupInterval),
 	}
-	c.Table.compile()
+	c.table.compile()
 	return &c
 }
 
-// Get retrieves an HTTP response from the cache
-func (c *Cache) Get(req *http.Request) (string, *http.Response, bool, error) {
+func (c *responseCache) get(req *http.Request) (string, *http.Response, bool, error) {
 	key := getCacheKey(req)
 	body, found := c.cache.Get(key)
+	if !found {
+		return key, nil, false, nil
+	}
 
-	var resp *http.Response
-	var err error
-	if found {
-		resp, err = http.ReadResponse(bufio.NewReader(bytes.NewBuffer(body)), req)
-		return key, resp, found, err
+	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(body)), req)
+	if err == nil {
+		resp.Request = req
 	}
 	return key, resp, found, err
 }
 
-// Put stores an HTTP response in the cache
-func (c *Cache) Put(key string, req *http.Request, resp *http.Response) error {
+func (c *responseCache) put(key string, req *http.Request, resp *http.Response) error {
 	shouldCache, expiry := c.shouldCache(req)
 	if !shouldCache {
 		return nil
@@ -53,8 +50,8 @@ func (c *Cache) Put(key string, req *http.Request, resp *http.Response) error {
 	return err
 }
 
-func (c *Cache) shouldCache(r *http.Request) (cache bool, expiry time.Duration) {
-	cache, expiry = c.Table.shouldCache(r)
+func (c *responseCache) shouldCache(r *http.Request) (cache bool, expiry time.Duration) {
+	cache, expiry = c.table.shouldCache(r)
 	if cache && expiry == 0 {
 		expiry = c.cache.GetDefaultExpiration()
 	}

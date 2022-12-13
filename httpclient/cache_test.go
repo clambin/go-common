@@ -1,8 +1,7 @@
-package httpclient_test
+package httpclient
 
 import (
 	"bytes"
-	"github.com/clambin/go-common/httpclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -12,12 +11,12 @@ import (
 )
 
 func TestCacher_Put_Get(t *testing.T) {
-	//c := httpclient.Cache{Table: httpclient.CacheTable{{
+	//c := httpclient.responseCache{table: httpclient.CacheTable{{
 	//	Path: "/foo",
 	//}}}
 
-	table := httpclient.CacheTable{{Path: "/foo"}}
-	c := httpclient.NewCache(table, time.Minute, 0)
+	table := CacheTable{{Path: "/foo"}}
+	c := newCache(table, time.Minute, 0)
 
 	tests := []struct {
 		name  string
@@ -46,7 +45,7 @@ func TestCacher_Put_Get(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest(http.MethodGet, tt.url, nil)
-			key, _, found, err := c.Get(req)
+			key, _, found, err := c.get(req)
 			require.NoError(t, err)
 			assert.Equal(t, tt.found, found)
 			assert.NotEmpty(t, key)
@@ -60,7 +59,7 @@ func TestCacher_Put_Get(t *testing.T) {
 					Request:       req,
 				}
 
-				err = c.Put(key, req, resp)
+				err = c.put(key, req, resp)
 				require.NoError(t, err)
 			}
 		})

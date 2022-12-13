@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// CacheTable holds the endpoints that should be cached. If Table is empty, all responses will be cached.
+// CacheTable holds the endpoints that should be cached. If table is empty, all responses will be cached.
 type CacheTable []*CacheTableEntry
 
 func (c CacheTable) shouldCache(r *http.Request) (match bool, expiry time.Duration) {
