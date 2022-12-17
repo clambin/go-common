@@ -3,21 +3,20 @@ package httpserver
 import (
 	"context"
 	"fmt"
-	"github.com/gorilla/mux"
+	"github.com/clambin/go-common/set"
 	"github.com/prometheus/client_golang/prometheus"
 	"net"
 	"net/http"
-	"strconv"
 	"time"
 )
 
 // Server implements a configurable HTTP Server. See the different WithXXX structs for available options.
 type Server struct {
-	port     int
-	handlers []Handler
-	metrics  *metrics
-	listener net.Listener
-	server   *http.Server
+	port                int
+	handlers            []Handler
+	instrumentedHandler *InstrumentedHandler
+	listener            net.Listener
+	server              *http.Server
 }
 
 var _ prometheus.Collector = &Server{}
@@ -44,15 +43,9 @@ func New(options ...Option) (s *Server, err error) {
 		return nil, fmt.Errorf("http server: %w", err)
 	}
 
-	r := mux.NewRouter()
-	if s.metrics != nil {
-		r.Use(s.handle)
-	}
+	r := http.NewServeMux()
 	for _, h := range s.handlers {
-		if len(h.Methods) == 0 {
-			h.Methods = []string{http.MethodGet}
-		}
-		r.Path(h.Path).Handler(h.Handler).Methods(h.Methods...)
+		r.Handle(h.Path, s.makeHandler(h))
 	}
 	s.server = &http.Server{Handler: r}
 	return
@@ -80,54 +73,28 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	s.server.Handler.ServeHTTP(w, req)
 }
 
-func (s *Server) handle(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lrw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-		route := mux.CurrentRoute(r)
-		path, _ := route.GetPathTemplate()
-
-		// handle is only called if s.metrics != nil
-		obs := s.metrics.duration.With(r.Method, path)
-
-		start := time.Now()
-		next.ServeHTTP(lrw, r)
-
-		s.metrics.requests.WithLabelValues(r.Method, path, strconv.Itoa(lrw.statusCode)).Inc()
-		obs.Observe(time.Since(start).Seconds())
-	})
-}
-
 // Describe implements the prometheus.Collector interface
 func (s *Server) Describe(descs chan<- *prometheus.Desc) {
-	if s.metrics != nil {
-		s.metrics.Describe(descs)
+	if s.instrumentedHandler != nil {
+		s.instrumentedHandler.metrics.Describe(descs)
 	}
 }
 
 // Collect implements the prometheus.Collector interface
 func (s *Server) Collect(c chan<- prometheus.Metric) {
-	if s.metrics != nil {
-		s.metrics.Collect(c)
+	if s.instrumentedHandler != nil {
+		s.instrumentedHandler.metrics.Collect(c)
 	}
 }
 
-type loggingResponseWriter struct {
-	http.ResponseWriter
-	wroteHeader bool
-	statusCode  int
-}
-
-// WriteHeader implements the http.ResponseWriter interface.
-func (w *loggingResponseWriter) WriteHeader(code int) {
-	w.ResponseWriter.WriteHeader(code)
-	w.statusCode = code
-	w.wroteHeader = true
-}
-
-// Write implements the http.ResponseWriter interface.
-func (w *loggingResponseWriter) Write(body []byte) (int, error) {
-	if !w.wroteHeader {
-		w.WriteHeader(http.StatusOK)
+func (s *Server) makeHandler(h Handler) http.Handler {
+	handler := h.Handler
+	if s.instrumentedHandler != nil {
+		handler = s.instrumentedHandler.handle(handler)
 	}
-	return w.ResponseWriter.Write(body)
+	if len(h.Methods) == 0 {
+		h.Methods = []string{http.MethodGet}
+	}
+	m := &MethodFilteredHandler{methods: set.Create(h.Methods)}
+	return m.handle(handler)
 }

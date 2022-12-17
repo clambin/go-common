@@ -67,5 +67,5 @@ const (
 )
 
 func (o WithMetrics) apply(s *Server) {
-	s.metrics = newMetrics(o)
+	s.instrumentedHandler = &InstrumentedHandler{metrics: newMetrics(o)}
 }
