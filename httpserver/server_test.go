@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/clambin/go-common/httpserver"
-	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
@@ -53,24 +52,12 @@ func TestServer_ServeHTTP(t *testing.T) {
 						}),
 						Methods: []string{http.MethodPost},
 					},
-					{
-						Path: "/bar/{type}",
-						Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-							if barType, ok := mux.Vars(req)["type"]; !ok || barType != "snafu" {
-								http.Error(w, "invalid type", http.StatusBadRequest)
-								return
-							}
-							_, _ = w.Write([]byte("OK"))
-						}),
-						Methods: []string{http.MethodPost},
-					},
 				}},
 			},
 			waitFor: endpoint{path: "/foo", method: http.MethodPost, result: http.StatusOK},
 			endpoints: []endpoint{
 				{path: "/foo", method: http.MethodPost, result: http.StatusOK},
 				{path: "/foo", method: http.MethodGet, result: http.StatusMethodNotAllowed},
-				{path: "/bar/snafu", method: http.MethodPost, result: http.StatusOK},
 				{path: "/metrics", method: http.MethodGet, result: http.StatusNotFound},
 			},
 		},
@@ -122,7 +109,7 @@ func TestServer_ServeHTTP(t *testing.T) {
 
 				s.ServeHTTP(resp, req)
 
-				assert.Equal(t, resp.Code, ep.result)
+				assert.Equal(t, resp.Code, ep.result, ep.path)
 			}
 		})
 	}
