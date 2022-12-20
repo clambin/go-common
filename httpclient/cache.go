@@ -59,5 +59,5 @@ func (c *responseCache) shouldCache(r *http.Request) (cache bool, expiry time.Du
 }
 
 func getCacheKey(r *http.Request) string {
-	return r.URL.Path
+	return r.Method + " | " + r.URL.Path
 }
