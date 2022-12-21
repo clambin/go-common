@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/sirupsen/logrus v1.9.0
-	github.com/slack-go/slack v0.12.0
+	github.com/slack-go/slack v0.12.1
 	github.com/stretchr/testify v1.8.1
 )
 
