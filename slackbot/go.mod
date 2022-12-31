@@ -1,6 +1,6 @@
 module github.com/clambin/go-common/slackbot
 
-go 1.19
+go 1.18
 
 require (
 	github.com/slack-go/slack v0.12.1
