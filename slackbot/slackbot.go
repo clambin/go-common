@@ -3,8 +3,8 @@ package slackbot
 import (
 	"context"
 	"github.com/clambin/go-common/slackbot/client"
-	log "github.com/sirupsen/logrus"
 	"github.com/slack-go/slack"
+	"golang.org/x/exp/slog"
 	"regexp"
 	"strings"
 	"sync"
@@ -59,7 +59,7 @@ func (b *SlackBot) Run(ctx context.Context) (err error) {
 			}
 		}
 		if err != nil {
-			log.WithError(err).Warning("failed to post message on Slack")
+			slog.Error("failed to post message on Slack", err)
 		}
 	}
 	return

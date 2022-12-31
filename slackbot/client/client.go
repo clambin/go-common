@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"github.com/slack-go/slack"
+	"golang.org/x/exp/slog"
 	"sync"
 )
 
@@ -71,15 +71,13 @@ func (c *slackClient) GetChannels() ([]string, error) {
 }
 
 // Send a message to slack.  if no channel is specified, the message is broadcast to all getChannels
-func (c *slackClient) Send(channel string, attachments []slack.Attachment) (err error) {
-	_, _, err = c.slackRTM.PostMessage(
+func (c *slackClient) Send(channel string, attachments []slack.Attachment) error {
+	_, _, err := c.slackRTM.PostMessage(
 		channel,
 		slack.MsgOptionAttachments(attachments...),
 		slack.MsgOptionAsUser(true),
 	)
-
-	log.WithError(err).Debug("sent a message")
-	return
+	return err
 }
 
 func (c *slackClient) setUserID(userID string) {
@@ -107,15 +105,15 @@ func (c *slackClient) processEvent(event slack.RTMEvent) {
 	case *slack.ConnectedEvent:
 		c.setUserID(ev.Info.User.ID)
 		if !c.connected {
-			log.Info("connected to slack")
+			slog.Info("connected to slack")
 			c.connected = true
 		}
 	case *slack.MessageEvent:
 		c.eventChannel <- ev
 	case *slack.RTMError:
-		log.WithError(ev).Error("error reading on slack RTM connection")
+		slog.Error("error reading on slack RTM connection", ev)
 	case *slack.InvalidAuthEvent:
-		log.Error("error received from slack: invalid credentials")
+		slog.Warn("error received from slack: invalid credentials")
 	}
 	return
 }
