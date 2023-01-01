@@ -2,7 +2,7 @@
 ![Test](https://github.com/clambin/go-common/workflows/Test/badge.svg)
 [![GoDoc](https://pkg.go.dev/badge/github.com/clambin/go-common/set?utm_source=godoc)](http://pkg.go.dev/github.com/clambin/go-common/set)
 
-Basic set implemented with genetics. 
+Basic set implemented with generics. 
 
 ## Authors
 
