@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"github.com/clambin/go-common/httpserver/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 )
@@ -67,5 +68,18 @@ const (
 )
 
 func (o WithMetrics) apply(s *Server) {
-	s.instrumentedHandler = &InstrumentedHandler{metrics: newMetrics(o)}
+	// TODO: this is ugly is f*ck
+	mwOptions := middleware.PrometheusMetricsOptions{
+		Namespace:   o.Namespace,
+		Subsystem:   o.Subsystem,
+		Application: o.Application,
+		Buckets:     o.Buckets,
+	}
+	switch o.MetricsType {
+	case Summary:
+		mwOptions.MetricsType = middleware.Summary
+	case Histogram:
+		mwOptions.MetricsType = middleware.Histogram
+	}
+	s.instrumentedHandler = middleware.NewPrometheusMetrics(mwOptions)
 }
