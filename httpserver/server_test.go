@@ -24,7 +24,6 @@ type endpoint struct {
 type testCase struct {
 	name      string
 	options   []httpserver.Option
-	waitFor   endpoint
 	endpoints []endpoint
 }
 
@@ -35,7 +34,6 @@ func TestServer_ServeHTTP(t *testing.T) {
 			options: []httpserver.Option{
 				httpserver.WithPrometheus{},
 			},
-			waitFor: endpoint{path: "/metrics", method: http.MethodGet, result: http.StatusOK},
 			endpoints: []endpoint{
 				{path: "/metrics", method: http.MethodGet, result: http.StatusOK},
 				{path: "/foo", method: http.MethodGet, result: http.StatusNotFound},
@@ -54,7 +52,6 @@ func TestServer_ServeHTTP(t *testing.T) {
 					},
 				}},
 			},
-			waitFor: endpoint{path: "/foo", method: http.MethodPost, result: http.StatusOK},
 			endpoints: []endpoint{
 				{path: "/foo", method: http.MethodPost, result: http.StatusOK},
 				{path: "/foo", method: http.MethodGet, result: http.StatusMethodNotAllowed},
@@ -74,7 +71,6 @@ func TestServer_ServeHTTP(t *testing.T) {
 					},
 				}},
 			},
-			waitFor: endpoint{path: "/foo", method: http.MethodGet, result: http.StatusOK},
 			endpoints: []endpoint{
 				{path: "/foo", method: http.MethodGet, result: http.StatusOK},
 				{path: "/foo", method: http.MethodPost, result: http.StatusMethodNotAllowed},
@@ -88,7 +84,6 @@ func TestServer_ServeHTTP(t *testing.T) {
 				httpserver.WithPort{Port: 8080},
 				httpserver.WithPrometheus{},
 			},
-			waitFor: endpoint{path: "/metrics", method: http.MethodGet, result: http.StatusOK},
 			endpoints: []endpoint{
 				{path: "/metrics", method: http.MethodGet, result: http.StatusOK},
 				{path: "/metrics", method: http.MethodPost, result: http.StatusMethodNotAllowed},
@@ -109,7 +104,7 @@ func TestServer_ServeHTTP(t *testing.T) {
 
 				s.ServeHTTP(resp, req)
 
-				assert.Equal(t, resp.Code, ep.result, ep.path)
+				assert.Equal(t, ep.result, resp.Code, ep.path)
 			}
 		})
 	}

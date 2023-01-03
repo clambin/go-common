@@ -3,7 +3,7 @@ package httpserver
 import (
 	"context"
 	"fmt"
-	"github.com/clambin/go-common/set"
+	"github.com/clambin/go-common/httpserver/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"net"
 	"net/http"
@@ -14,7 +14,7 @@ import (
 type Server struct {
 	port                int
 	handlers            []Handler
-	instrumentedHandler *InstrumentedHandler
+	instrumentedHandler *middleware.PrometheusMetrics
 	listener            net.Listener
 	server              *http.Server
 }
@@ -76,25 +76,24 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // Describe implements the prometheus.Collector interface
 func (s *Server) Describe(descs chan<- *prometheus.Desc) {
 	if s.instrumentedHandler != nil {
-		s.instrumentedHandler.metrics.Describe(descs)
+		s.instrumentedHandler.Describe(descs)
 	}
 }
 
 // Collect implements the prometheus.Collector interface
 func (s *Server) Collect(c chan<- prometheus.Metric) {
 	if s.instrumentedHandler != nil {
-		s.instrumentedHandler.metrics.Collect(c)
+		s.instrumentedHandler.Collect(c)
 	}
 }
 
 func (s *Server) makeHandler(h Handler) http.Handler {
 	handler := h.Handler
 	if s.instrumentedHandler != nil {
-		handler = s.instrumentedHandler.handle(handler)
+		handler = s.instrumentedHandler.Handle(handler)
 	}
-	if len(h.Methods) == 0 {
-		h.Methods = []string{http.MethodGet}
-	}
-	m := &MethodFilteredHandler{methods: set.Create(h.Methods)}
-	return m.handle(handler)
+	//if len(h.Methods) == 0 {
+	//	return handler
+	//}
+	return MethodFilter(h.Methods...)(handler)
 }
