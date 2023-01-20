@@ -118,8 +118,7 @@ func (t *Tabulator) GetValues(columnName string) ([]float64, bool) {
 
 // Accumulate increments the values in each column
 func (t *Tabulator) Accumulate() {
-	columns := len(t.GetColumns())
-	accumulated := make([]float64, columns)
+	accumulated := make([]float64, t.columns.Count())
 
 	for _, timestamp := range t.GetTimestamps() {
 		row, _ := t.timestamps.GetIndex(timestamp)

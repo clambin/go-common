@@ -180,8 +180,8 @@ func BenchmarkTabulator_Add_OutOfOrder(b *testing.B) {
 }
 
 func BenchmarkTabulator_Add_Same_Timestamp(b *testing.B) {
+	tab := tabulator.New("A")
 	for i := 0; i < b.N; i++ {
-		tab := tabulator.New("A")
 		timestamp := time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
 		for j := 0; j < 10; j++ {
 			for k := 0; k < 100; k++ {
@@ -190,7 +190,6 @@ func BenchmarkTabulator_Add_Same_Timestamp(b *testing.B) {
 			timestamp = timestamp.Add(24 * time.Hour)
 		}
 	}
-	//b.Log(tab.Skips())
 }
 
 func BenchmarkTabulator_Accumulate(b *testing.B) {
@@ -201,6 +200,7 @@ func BenchmarkTabulator_Accumulate(b *testing.B) {
 		d.Add(timestamp, "A", float64(day))
 		timestamp = timestamp.Add(24 * time.Hour)
 	}
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		d.Accumulate()
 	}
