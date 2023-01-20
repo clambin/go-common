@@ -45,7 +45,7 @@ func TestCacheExpiry(t *testing.T) {
 
 	assert.Eventually(t, func() bool {
 		_, found = c.Get("foo")
-		return found == false
+		return !found
 	}, 200*time.Millisecond, 50*time.Millisecond)
 
 	assert.Equal(t, 0, c.Len())

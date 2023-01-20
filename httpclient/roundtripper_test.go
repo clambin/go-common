@@ -45,7 +45,7 @@ func TestRoundTripper_WithCache(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		req, _ := http.NewRequest(http.MethodGet, s.URL+"/foo", nil)
 		resp, err := c.Do(req)
-		require.NoError(t, err)
+		require.NoError(t, err, i)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		if i == 0 {

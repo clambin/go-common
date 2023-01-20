@@ -32,12 +32,13 @@ type Handler struct {
 }
 
 // New returns a Server with the specified options
-func New(options ...Option) (s *Server, err error) {
-	s = new(Server)
+func New(options ...Option) (*Server, error) {
+	var s Server
 	for _, o := range options {
-		o.apply(s)
+		o.apply(&s)
 	}
 
+	var err error
 	s.listener, err = net.Listen("tcp", fmt.Sprintf(":%d", s.port))
 	if err != nil {
 		return nil, fmt.Errorf("http server: %w", err)
@@ -48,7 +49,7 @@ func New(options ...Option) (s *Server, err error) {
 		r.Handle(h.Path, s.makeHandler(h))
 	}
 	s.server = &http.Server{Handler: r}
-	return
+	return &s, nil
 }
 
 // Serve starts the HTTP server. When the server is shut down, it returns http.ErrServerClosed.

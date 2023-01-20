@@ -9,8 +9,8 @@ import (
 // RoundTripper performs an HTTP request based on the specified list of RoundTripperOption items.
 // It implements the http.RoundTripper interface.
 type RoundTripper struct {
+	*roundTripperMetrics
 	roundTripper http.RoundTripper
-	metrics      *roundTripperMetrics
 	cache        *responseCache
 }
 
@@ -19,11 +19,11 @@ var _ prometheus.Collector = &RoundTripper{}
 
 // NewRoundTripper creates a new RoundTripper
 func NewRoundTripper(options ...RoundTripperOption) *RoundTripper {
-	r := &RoundTripper{roundTripper: http.DefaultTransport}
+	r := RoundTripper{roundTripper: http.DefaultTransport}
 	for _, option := range options {
-		option.apply(r)
+		option.apply(&r)
 	}
-	return r
+	return &r
 }
 
 // RoundTrip performs the HTTP request
@@ -32,41 +32,27 @@ func (r *RoundTripper) RoundTrip(request *http.Request) (response *http.Response
 	if r.cache != nil {
 		var found bool
 		cacheKey, response, found, err = r.cache.get(request)
-		r.metrics.reportCache(found, request.URL.Path, request.Method)
+		r.reportCache(found, request.URL.Path, request.Method)
 		if found || err != nil {
 			return response, err
 		}
 	}
 
 	path := request.URL.Path
-	timer := r.metrics.makeLatencyTimer(path, request.Method)
+	timer := r.makeLatencyTimer(path, request.Method)
 
 	response, err = r.roundTripper.RoundTrip(request)
 
 	if timer != nil {
 		timer.ObserveDuration()
 	}
-	r.metrics.reportErrors(err, path, request.Method)
+	r.reportErrors(err, path, request.Method)
 
 	if err == nil && r.cache != nil {
 		err = r.cache.put(cacheKey, request, response)
 	}
 
 	return response, err
-}
-
-// Describe implements the prometheus.Collector interface
-func (r *RoundTripper) Describe(descs chan<- *prometheus.Desc) {
-	if r.metrics != nil {
-		r.metrics.Describe(descs)
-	}
-}
-
-// Collect implements the prometheus.Collector interface
-func (r *RoundTripper) Collect(metrics chan<- prometheus.Metric) {
-	if r.metrics != nil {
-		r.metrics.Collect(metrics)
-	}
 }
 
 // RoundTripperOption specified configuration options for Client
@@ -86,7 +72,7 @@ type WithRoundTripperMetrics struct {
 }
 
 func (o WithRoundTripperMetrics) apply(r *RoundTripper) {
-	r.metrics = newMetrics(o.Namespace, o.Subsystem, o.Application)
+	r.roundTripperMetrics = newMetrics(o.Namespace, o.Subsystem, o.Application)
 }
 
 // WithCache causes RoundTripper to cache the HTTP responses. Table dictates the caching behaviour per target path.

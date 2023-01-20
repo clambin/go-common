@@ -93,3 +93,43 @@ func TestCacher_Put_Get(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkCachePut(b *testing.B) {
+	c := newCache(CacheTable{}, time.Minute, 5*time.Minute)
+	req, _ := http.NewRequest(http.MethodGet, "/", bytes.NewBufferString("this is a request"))
+	resp := http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString("this is a response")),
+		Request:    req,
+	}
+	key := getCacheKey(req)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := c.put(key, req, &resp); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkCacheGet(b *testing.B) {
+	c := newCache(CacheTable{}, time.Minute, 5*time.Minute)
+	req, _ := http.NewRequest(http.MethodGet, "/", bytes.NewBufferString("this is a request"))
+	resp := http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString("this is a response")),
+		Request:    req,
+	}
+	_ = c.put(getCacheKey(req), req, &resp)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _, ok, err := c.get(req)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if !ok {
+			b.Fatal("response not found in cache???")
+		}
+	}
+}

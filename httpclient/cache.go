@@ -6,6 +6,7 @@ import (
 	"github.com/clambin/go-common/cache"
 	"net/http"
 	"net/http/httputil"
+	"sync"
 	"time"
 )
 
@@ -30,7 +31,12 @@ func (c *responseCache) get(req *http.Request) (string, *http.Response, bool, er
 		return key, nil, false, nil
 	}
 
-	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(body)), req)
+	// avoid creating bufio.Reader for each cached request. doing same for bytes.Buffer gives negligible improvements
+	r := readerPool.Get().(*bufio.Reader)
+	defer readerPool.Put(r)
+	r.Reset(bytes.NewBuffer(body))
+
+	resp, err := http.ReadResponse(r, req)
 	if err == nil {
 		resp.Request = req
 	}
@@ -60,4 +66,8 @@ func (c *responseCache) shouldCache(r *http.Request) (cache bool, expiry time.Du
 
 func getCacheKey(r *http.Request) string {
 	return r.Method + " | " + r.URL.Path
+}
+
+var readerPool = sync.Pool{
+	New: func() any { return bufio.NewReader(nil) },
 }
