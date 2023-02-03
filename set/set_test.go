@@ -125,7 +125,27 @@ func TestSet_Copy(t *testing.T) {
 	}
 }
 
-func TestSet_Union(t *testing.T) {
+func TestCreate(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []string
+		expected []string
+	}{
+		{name: "empty"},
+		{name: "not empty", input: []string{"A", "B"}, expected: []string{"A", "B"}},
+		{name: "duplicates", input: []string{"A", "B", "A"}, expected: []string{"A", "B"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := set.Create(tt.input...).List()
+			sort.Strings(output)
+			assert.Equal(t, tt.expected, output)
+		})
+	}
+}
+
+func TestUnion(t *testing.T) {
 	tests := []struct {
 		name     string
 		setA     set.Set[string]
@@ -145,7 +165,7 @@ func TestSet_Union(t *testing.T) {
 	}
 }
 
-func TestSet_Intersection(t *testing.T) {
+func TestIntersection(t *testing.T) {
 	tests := []struct {
 		name     string
 		setA     set.Set[string]
@@ -166,7 +186,7 @@ func TestSet_Intersection(t *testing.T) {
 	}
 }
 
-func TestSet_Difference(t *testing.T) {
+func TestDifference(t *testing.T) {
 	tests := []struct {
 		name     string
 		setA     set.Set[string]
