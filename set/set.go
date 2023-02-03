@@ -2,19 +2,15 @@ package set
 
 type Set[K comparable] map[K]struct{}
 
-func (s Set[K]) Add(values ...K) {
-	for _, value := range values {
-		s[value] = struct{}{}
-	}
+func (s Set[K]) Add(value K) {
+	s[value] = struct{}{}
 }
 
-func (s Set[K]) Remove(values ...K) {
-	for _, value := range values {
-		delete(s, value)
-	}
+func (s Set[K]) Remove(value K) {
+	delete(s, value)
 }
 
-func (s Set[K]) Has(value K) bool {
+func (s Set[K]) Contains(value K) bool {
 	_, found := s[value]
 	return found
 }
@@ -68,7 +64,7 @@ func Union[K comparable](setA, setB Set[K]) Set[K] {
 func Intersection[K comparable](setA, setB Set[K]) Set[K] {
 	intersection := make(Set[K])
 	for key := range setA {
-		if setB.Has(key) {
+		if setB.Contains(key) {
 			intersection[key] = struct{}{}
 		}
 	}

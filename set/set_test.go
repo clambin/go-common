@@ -62,7 +62,7 @@ func TestSet_Has(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.input.Has(tt.has))
+			assert.Equal(t, tt.expected, tt.input.Contains(tt.has))
 		})
 	}
 }
