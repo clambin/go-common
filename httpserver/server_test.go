@@ -32,7 +32,7 @@ func TestServer_ServeHTTP(t *testing.T) {
 		{
 			name: "prometheus only",
 			options: []httpserver.Option{
-				httpserver.WithPrometheus{},
+				httpserver.WithPrometheus(""),
 			},
 			endpoints: []endpoint{
 				{path: "/metrics", method: http.MethodGet, result: http.StatusOK},
@@ -42,7 +42,7 @@ func TestServer_ServeHTTP(t *testing.T) {
 		{
 			name: "handlers only",
 			options: []httpserver.Option{
-				httpserver.WithHandlers{Handlers: []httpserver.Handler{
+				httpserver.WithHandlers([]httpserver.Handler{
 					{
 						Path: "/foo",
 						Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -50,7 +50,7 @@ func TestServer_ServeHTTP(t *testing.T) {
 						}),
 						Methods: []string{http.MethodPost},
 					},
-				}},
+				}),
 			},
 			endpoints: []endpoint{
 				{path: "/foo", method: http.MethodPost, result: http.StatusOK},
@@ -61,15 +61,15 @@ func TestServer_ServeHTTP(t *testing.T) {
 		{
 			name: "combined",
 			options: []httpserver.Option{
-				httpserver.WithPrometheus{},
-				httpserver.WithHandlers{Handlers: []httpserver.Handler{
+				httpserver.WithPrometheus(""),
+				httpserver.WithHandlers([]httpserver.Handler{
 					{
 						Path: "/foo",
 						Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 							_, _ = w.Write([]byte("OK"))
 						}),
 					},
-				}},
+				}),
 			},
 			endpoints: []endpoint{
 				{path: "/foo", method: http.MethodGet, result: http.StatusOK},
@@ -81,8 +81,8 @@ func TestServer_ServeHTTP(t *testing.T) {
 		{
 			name: "fixed port",
 			options: []httpserver.Option{
-				httpserver.WithPort{Port: 8080},
-				httpserver.WithPrometheus{},
+				httpserver.WithAddr(":8080"),
+				httpserver.WithPrometheus(""),
 			},
 			endpoints: []endpoint{
 				{path: "/metrics", method: http.MethodGet, result: http.StatusOK},
@@ -114,19 +114,19 @@ func TestServer_ServeHTTP(t *testing.T) {
 func TestServer_ServerHTTP_WithMetrics(t *testing.T) {
 	testCases := []struct {
 		name         string
-		metrics      httpserver.WithMetrics
+		metrics      httpserver.Option
 		evalCount    func(t *testing.T, r prometheus.Gatherer)
 		evalDuration func(t *testing.T, r prometheus.Gatherer)
 	}{
 		{
 			name:         "histogram",
-			metrics:      httpserver.WithMetrics{MetricsType: httpserver.Histogram, Application: "foobar"},
+			metrics:      httpserver.WithMetrics("", "", "foobar", httpserver.Histogram, nil),
 			evalCount:    evalRequestsCounter,
 			evalDuration: evalDurationHistogram,
 		},
 		{
 			name:         "summary",
-			metrics:      httpserver.WithMetrics{MetricsType: httpserver.Summary, Application: "foobar"},
+			metrics:      httpserver.WithMetrics("", "", "foobar", httpserver.Summary, nil),
 			evalCount:    evalRequestsCounter,
 			evalDuration: evalDurationSummary,
 		},
@@ -136,12 +136,12 @@ func TestServer_ServerHTTP_WithMetrics(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			s, err := httpserver.New(
-				httpserver.WithHandlers{Handlers: []httpserver.Handler{{
+				httpserver.WithHandlers([]httpserver.Handler{{
 					Path: "/foo",
 					Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						_, _ = w.Write([]byte("OK"))
 					}),
-				}}},
+				}}),
 				tt.metrics,
 			)
 			require.NoError(t, err)
@@ -169,12 +169,12 @@ func TestServer_ServerHTTP_WithMetrics(t *testing.T) {
 }
 
 func TestServer_Serve(t *testing.T) {
-	s, err := httpserver.New(httpserver.WithHandlers{Handlers: []httpserver.Handler{{
+	s, err := httpserver.New(httpserver.WithHandlers([]httpserver.Handler{{
 		Path: "/",
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte("OK"))
 		}),
-	}}})
+	}}))
 	require.NoError(t, err)
 
 	var wg sync.WaitGroup
@@ -198,7 +198,7 @@ func TestServer_Serve(t *testing.T) {
 }
 
 func TestServer_Run_BadPort(t *testing.T) {
-	_, err := httpserver.New(httpserver.WithPort{Port: -1})
+	_, err := httpserver.New(httpserver.WithAddr(":-1"))
 	assert.Error(t, err)
 }
 

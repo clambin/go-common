@@ -7,52 +7,55 @@ import (
 )
 
 // Option specified configuration options for Server
-type Option interface {
-	apply(server *Server)
-}
+type Option func(*Server)
 
-// WithPort specifies the Server's listening port. If no port is specified, Server will listen on a random port.
+// WithAddr specifies the Server's listening address.  If the port is zero, Server will listen on a random port.
 // Use GetPort() to determine the actual listening port
-type WithPort struct {
-	Port int
-}
-
-func (o WithPort) apply(s *Server) {
-	s.port = o.Port
+func WithAddr(addr string) Option {
+	return func(s *Server) {
+		s.addr = addr
+	}
 }
 
 // WithPrometheus adds a Prometheus metrics endpoint to the server at the specified Path. Default path is "/metrics"
-type WithPrometheus struct {
-	Path string
-}
-
-func (o WithPrometheus) apply(s *Server) {
-	if o.Path == "" {
-		o.Path = "/metrics"
+func WithPrometheus(path string) Option {
+	return func(s *Server) {
+		if path == "" {
+			path = "/metrics"
+		}
+		s.handlers = append(s.handlers, Handler{
+			Path:    path,
+			Handler: promhttp.Handler(),
+			Methods: []string{http.MethodGet},
+		})
 	}
-	s.handlers = append(s.handlers, Handler{
-		Path:    o.Path,
-		Handler: promhttp.Handler(),
-		Methods: []string{http.MethodGet},
-	})
 }
 
 // WithHandlers adds the specified handlers to the server
-type WithHandlers struct {
-	Handlers []Handler
-}
-
-func (o WithHandlers) apply(s *Server) {
-	s.handlers = append(s.handlers, o.Handlers...)
+func WithHandlers(handlers []Handler) Option {
+	return func(s *Server) {
+		s.handlers = append(s.handlers, handlers...)
+	}
 }
 
 // WithMetrics will collect the specified metrics to instrument the Server's Handlers.
-type WithMetrics struct {
-	Namespace   string
-	Subsystem   string
-	Application string
-	MetricsType MetricsType
-	Buckets     []float64
+func WithMetrics(namespace, subsystem, application string, metricsType MetricsType, buckets []float64) Option {
+	return func(s *Server) {
+		// TODO: this is ugly is f*ck
+		mwOptions := middleware.PrometheusMetricsOptions{
+			Namespace:   namespace,
+			Subsystem:   subsystem,
+			Application: application,
+			Buckets:     buckets,
+		}
+		switch metricsType {
+		case Summary:
+			mwOptions.MetricsType = middleware.Summary
+		case Histogram:
+			mwOptions.MetricsType = middleware.Histogram
+		}
+		s.instrumentedHandler = middleware.NewPrometheusMetrics(mwOptions)
+	}
 }
 
 // MetricsType specifies the type of metrics to record for request duration. Use Summary if you are only interested in the average latency.
@@ -66,20 +69,3 @@ const (
 	// specify the buckets to be used. If none are provided, prometheus.DefBuckets will be used.
 	Histogram
 )
-
-func (o WithMetrics) apply(s *Server) {
-	// TODO: this is ugly is f*ck
-	mwOptions := middleware.PrometheusMetricsOptions{
-		Namespace:   o.Namespace,
-		Subsystem:   o.Subsystem,
-		Application: o.Application,
-		Buckets:     o.Buckets,
-	}
-	switch o.MetricsType {
-	case Summary:
-		mwOptions.MetricsType = middleware.Summary
-	case Histogram:
-		mwOptions.MetricsType = middleware.Histogram
-	}
-	s.instrumentedHandler = middleware.NewPrometheusMetrics(mwOptions)
-}

@@ -12,7 +12,7 @@ import (
 
 // Server implements a configurable HTTP Server. See the different WithXXX structs for available options.
 type Server struct {
-	port                int
+	addr                string
 	handlers            []Handler
 	instrumentedHandler *middleware.PrometheusMetrics
 	listener            net.Listener
@@ -35,11 +35,14 @@ type Handler struct {
 func New(options ...Option) (*Server, error) {
 	var s Server
 	for _, o := range options {
-		o.apply(&s)
+		o(&s)
+	}
+	if s.addr == "" {
+		s.addr = ":0"
 	}
 
 	var err error
-	s.listener, err = net.Listen("tcp", fmt.Sprintf(":%d", s.port))
+	s.listener, err = net.Listen("tcp", s.addr)
 	if err != nil {
 		return nil, fmt.Errorf("http server: %w", err)
 	}

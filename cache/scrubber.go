@@ -12,15 +12,16 @@ type scrubber[K comparable, V any] struct {
 
 func (s *scrubber[K, V]) run() {
 	ticker := time.NewTicker(s.period)
-	for running := true; running; {
+	defer ticker.Stop()
+
+	for {
 		select {
-		case <-s.halt:
-			running = false
 		case <-ticker.C:
 			s.cache.scrub()
+		case <-s.halt:
+			return
 		}
 	}
-	ticker.Stop()
 }
 
 func stopScrubber[K comparable, V any](c *Cache[K, V]) {
