@@ -3,6 +3,7 @@ package httpserver_test
 import (
 	"errors"
 	"github.com/clambin/go-common/httpserver"
+	"github.com/clambin/go-common/httpserver/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"net/http"
 )
@@ -11,7 +12,7 @@ func Example() {
 	s, err := httpserver.New(
 		httpserver.WithAddr(":8080"),
 		httpserver.WithPrometheus(""),
-		httpserver.WithMetrics("", "", "example", httpserver.Summary, nil),
+		httpserver.WithMetrics(middleware.PrometheusMetricsOptions{Application: "example", MetricsType: middleware.Summary}),
 		httpserver.WithHandlers([]httpserver.Handler{{
 			Path:    "/",
 			Methods: []string{http.MethodGet},

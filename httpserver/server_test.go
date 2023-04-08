@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/clambin/go-common/httpserver"
+	"github.com/clambin/go-common/httpserver/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
@@ -120,13 +121,13 @@ func TestServer_ServerHTTP_WithMetrics(t *testing.T) {
 	}{
 		{
 			name:         "histogram",
-			metrics:      httpserver.WithMetrics("", "", "foobar", httpserver.Histogram, nil),
+			metrics:      httpserver.WithMetrics(middleware.PrometheusMetricsOptions{Application: "foobar", MetricsType: middleware.Histogram}),
 			evalCount:    evalRequestsCounter,
 			evalDuration: evalDurationHistogram,
 		},
 		{
 			name:         "summary",
-			metrics:      httpserver.WithMetrics("", "", "foobar", httpserver.Summary, nil),
+			metrics:      httpserver.WithMetrics(middleware.PrometheusMetricsOptions{Application: "foobar", MetricsType: middleware.Summary}),
 			evalCount:    evalRequestsCounter,
 			evalDuration: evalDurationSummary,
 		},
