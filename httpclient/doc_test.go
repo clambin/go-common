@@ -10,7 +10,7 @@ import (
 )
 
 func Example_withMetrics() {
-	transport := httpclient.NewRoundTripper(httpclient.WithRoundTripperMetrics{Application: "example"})
+	transport := httpclient.NewRoundTripper(httpclient.WithMetrics("", "", "example"))
 	client := &http.Client{
 		Transport: transport,
 	}
@@ -26,16 +26,15 @@ func Example_withMetrics() {
 }
 
 func Example_withCache() {
+	cacheTable := []*httpclient.CacheTableEntry{
+		{
+			Path:     "/foo/.+",
+			IsRegExp: true,
+			Expiry:   5 * time.Second,
+		},
+	}
 	c := &http.Client{
-		Transport: httpclient.NewRoundTripper(httpclient.WithCache{
-			Table: []*httpclient.CacheTableEntry{
-				{
-					Path:     "/foo/.+",
-					IsRegExp: true,
-					Expiry:   5 * time.Second,
-				},
-			},
-		}),
+		Transport: httpclient.NewRoundTripper(httpclient.WithCache(cacheTable, time.Second, time.Minute)),
 	}
 
 	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)

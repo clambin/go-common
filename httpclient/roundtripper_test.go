@@ -30,12 +30,7 @@ func TestRoundTripper(t *testing.T) {
 }
 
 func TestRoundTripper_WithCache(t *testing.T) {
-	r := httpclient.NewRoundTripper(
-		httpclient.WithCache{
-			Table:           httpclient.CacheTable{},
-			DefaultExpiry:   time.Minute,
-			CleanupInterval: 5 * time.Minute,
-		})
+	r := httpclient.NewRoundTripper(httpclient.WithCache(httpclient.CacheTable{}, time.Minute, 5*time.Minute))
 	c := &http.Client{Transport: r}
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("Hello"))
@@ -68,9 +63,9 @@ func TestRoundTripper_WithCache(t *testing.T) {
 
 func TestRoundTripper_Collect(t *testing.T) {
 	r := httpclient.NewRoundTripper(
-		httpclient.WithCache{},
-		httpclient.WithRoundTripperMetrics{Application: "foo"},
-		httpclient.WithRoundTripper{RoundTripper: &stubbedRoundTripper{}},
+		//	httpclient.WithCache{},
+		httpclient.WithMetrics("", "", "foo"),
+		httpclient.WithRoundTripper(&stubbedRoundTripper{}),
 	)
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(r)
