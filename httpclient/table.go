@@ -10,6 +10,9 @@ import (
 // CacheTable holds the endpoints that should be cached. If table is empty, all responses will be cached.
 type CacheTable []*CacheTableEntry
 
+// DefaultCacheTable is a CacheTable that caches all requests.
+var DefaultCacheTable []*CacheTableEntry
+
 func (c CacheTable) shouldCache(r *http.Request) (match bool, expiry time.Duration) {
 	if len(c) == 0 {
 		return true, 0
@@ -23,9 +26,9 @@ func (c CacheTable) shouldCache(r *http.Request) (match bool, expiry time.Durati
 	return
 }
 
-func (c CacheTable) compile() {
+func (c CacheTable) mustCompile() {
 	for _, entry := range c {
-		entry.compile()
+		entry.mustCompile()
 	}
 }
 
@@ -76,7 +79,7 @@ func (entry *CacheTableEntry) matchesMethod(r *http.Request) bool {
 	return false
 }
 
-func (entry *CacheTableEntry) compile() {
+func (entry *CacheTableEntry) mustCompile() {
 	if !entry.IsRegExp {
 		return
 	}

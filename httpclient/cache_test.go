@@ -95,7 +95,7 @@ func TestCacher_Put_Get(t *testing.T) {
 }
 
 func BenchmarkCachePut(b *testing.B) {
-	c := newCache(CacheTable{}, time.Minute, 5*time.Minute)
+	c := newCache(DefaultCacheTable, time.Minute, 5*time.Minute)
 	req, _ := http.NewRequest(http.MethodGet, "/", bytes.NewBufferString("this is a request"))
 	resp := http.Response{
 		StatusCode: http.StatusOK,
@@ -113,7 +113,7 @@ func BenchmarkCachePut(b *testing.B) {
 }
 
 func BenchmarkCacheGet(b *testing.B) {
-	c := newCache(CacheTable{}, time.Minute, 5*time.Minute)
+	c := newCache(DefaultCacheTable, time.Minute, 5*time.Minute)
 	req, _ := http.NewRequest(http.MethodGet, "/", bytes.NewBufferString("this is a request"))
 	resp := http.Response{
 		StatusCode: http.StatusOK,

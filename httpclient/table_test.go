@@ -73,7 +73,7 @@ func TestCacheTable_ShouldCache(t *testing.T) {
 		},
 	}
 
-	table.compile()
+	table.mustCompile()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest(tt.method, tt.url, nil)

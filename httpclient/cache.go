@@ -20,7 +20,7 @@ func newCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) *r
 		table: table,
 		cache: cache.New[string, []byte](defaultExpiry, cleanupInterval),
 	}
-	c.table.compile()
+	c.table.mustCompile()
 	return &c
 }
 
@@ -31,7 +31,8 @@ func (c *responseCache) get(req *http.Request) (string, *http.Response, bool, er
 		return key, nil, false, nil
 	}
 
-	// avoid creating bufio.Reader for each cached request. doing same for bytes.Buffer gives negligible improvements
+	// avoid creating bufio.Reader for each cached request
+	// doing same for bytes.Buffer gives negligible improvements
 	r := readerPool.Get().(*bufio.Reader)
 	defer readerPool.Put(r)
 	r.Reset(bytes.NewBuffer(body))
