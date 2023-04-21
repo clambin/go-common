@@ -72,7 +72,7 @@ func WithMetrics(namespace, subsystem, application string) func(*RoundTripper) {
 // WithCache causes RoundTripper to cache the HTTP responses. Table dictates the caching behaviour per target path.
 // If Table is empty, all responses will be cached for DefaultExpiry amount of time. Expired entries will periodically
 // be removed from the cache as per CleanupInterval. If CleanupInterval is zero, expired entries will never be removed.
-func WithCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) func(tripper *RoundTripper) {
+func WithCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) func(*RoundTripper) {
 	return func(r *RoundTripper) {
 		r.cache = newCache(table, defaultExpiry, cleanupInterval)
 	}

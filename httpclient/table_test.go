@@ -93,3 +93,15 @@ func TestCacheTable_Empty(t *testing.T) {
 	cache, _ := table.shouldCache(req)
 	assert.True(t, cache)
 }
+
+func TestCacheTable_Panic(t *testing.T) {
+	table := CacheTable{
+		{
+			Path:     "/snafu/[a-",
+			IsRegExp: true,
+		},
+	}
+	assert.Panics(t, func() {
+		table.mustCompile()
+	})
+}
