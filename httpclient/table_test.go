@@ -86,21 +86,17 @@ func TestCacheTable_ShouldCache(t *testing.T) {
 	}
 }
 
-func TestCacheTable_Empty(t *testing.T) {
-	table := CacheTable{}
-
+func TestCacheTable_DefaultCacheTable(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "/", nil)
-	cache, _ := table.shouldCache(req)
+	cache, _ := DefaultCacheTable.shouldCache(req)
 	assert.True(t, cache)
 }
 
-func TestCacheTable_Panic(t *testing.T) {
-	table := CacheTable{
-		{
-			Path:     "/snafu/[a-",
-			IsRegExp: true,
-		},
-	}
+func TestCacheTable_BadCacheTable(t *testing.T) {
+	table := CacheTable{{
+		Path:     "/snafu/[a-",
+		IsRegExp: true,
+	}}
 	assert.Panics(t, func() {
 		table.mustCompile()
 	})

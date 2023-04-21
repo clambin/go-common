@@ -11,7 +11,7 @@ import (
 type CacheTable []*CacheTableEntry
 
 // DefaultCacheTable is a CacheTable that caches all requests.
-var DefaultCacheTable []*CacheTableEntry
+var DefaultCacheTable CacheTable
 
 func (c CacheTable) shouldCache(r *http.Request) (match bool, expiry time.Duration) {
 	if len(c) == 0 {
