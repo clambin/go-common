@@ -30,7 +30,7 @@ func TestRoundTripper(t *testing.T) {
 }
 
 func TestRoundTripper_WithCache(t *testing.T) {
-	r := httpclient.NewRoundTripper(httpclient.WithCache(httpclient.CacheTable{}, time.Minute, 5*time.Minute))
+	r := httpclient.NewRoundTripper(httpclient.WithCache(httpclient.DefaultCacheTable, time.Minute, 5*time.Minute))
 	c := &http.Client{Transport: r}
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("Hello"))
@@ -63,7 +63,6 @@ func TestRoundTripper_WithCache(t *testing.T) {
 
 func TestRoundTripper_Collect(t *testing.T) {
 	r := httpclient.NewRoundTripper(
-		//	httpclient.WithCache{},
 		httpclient.WithMetrics("", "", "foo"),
 		httpclient.WithRoundTripper(&stubbedRoundTripper{}),
 	)
@@ -100,6 +99,27 @@ func TestRoundTripper_Collect(t *testing.T) {
 			assert.Len(t, metric.GetMetric(), 1)
 		default:
 			t.Log(metric.GetName())
+		}
+	}
+}
+
+func BenchmarkRoundTripper_RoundTrip(b *testing.B) {
+	r := httpclient.NewRoundTripper(
+		httpclient.WithCache(httpclient.DefaultCacheTable, time.Minute, 0),
+		httpclient.WithMetrics("", "", "foo"),
+		httpclient.WithRoundTripper(&stubbedRoundTripper{}),
+	)
+
+	c := &http.Client{Transport: r}
+	req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080/", nil)
+
+	for i := 0; i < b.N; i++ {
+		resp, err := c.Do(req)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			b.Fatal(resp.Status)
 		}
 	}
 }
