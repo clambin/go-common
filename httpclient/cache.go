@@ -16,12 +16,12 @@ type responseCache struct {
 }
 
 func newCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) *responseCache {
-	c := responseCache{
+	c := &responseCache{
 		table: table,
 		cache: cache.New[string, []byte](defaultExpiry, cleanupInterval),
 	}
 	c.table.mustCompile()
-	return &c
+	return c
 }
 
 func (c *responseCache) get(req *http.Request) (string, *http.Response, bool, error) {

@@ -19,11 +19,11 @@ var _ prometheus.Collector = &RoundTripper{}
 
 // NewRoundTripper creates a new RoundTripper
 func NewRoundTripper(options ...RoundTripperOption) *RoundTripper {
-	r := RoundTripper{roundTripper: http.DefaultTransport}
+	r := &RoundTripper{roundTripper: http.DefaultTransport}
 	for _, option := range options {
-		option(&r)
+		option(r)
 	}
-	return &r
+	return r
 }
 
 // RoundTrip performs the HTTP request
@@ -63,7 +63,7 @@ type RoundTripperOption func(*RoundTripper)
 //
 // Namespace and Subsystem will be prepended to the metric names, e.g. api_errors_total will be called foo_bar_api_errors_total
 // if namespace and subsystem are set to foo and bar respectively. Application will be set in the metric's application label.
-func WithMetrics(namespace, subsystem, application string) func(*RoundTripper) {
+func WithMetrics(namespace, subsystem, application string) RoundTripperOption {
 	return func(r *RoundTripper) {
 		r.roundTripperMetrics = newMetrics(namespace, subsystem, application)
 	}
@@ -72,7 +72,7 @@ func WithMetrics(namespace, subsystem, application string) func(*RoundTripper) {
 // WithCache causes RoundTripper to cache the HTTP responses. Table dictates the caching behaviour per target path.
 // If Table is empty, all responses will be cached for DefaultExpiry amount of time. Expired entries will periodically
 // be removed from the cache as per CleanupInterval. If CleanupInterval is zero, expired entries will never be removed.
-func WithCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) func(*RoundTripper) {
+func WithCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) RoundTripperOption {
 	return func(r *RoundTripper) {
 		r.cache = newCache(table, defaultExpiry, cleanupInterval)
 	}
@@ -80,7 +80,7 @@ func WithCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) f
 
 // WithRoundTripper assigns a final RoundTripper of the chain. Use this to control the final HTTP exchange's behaviour
 // (e.g. using a proxy to make the HTTP call).
-func WithRoundTripper(roundTripper http.RoundTripper) func(*RoundTripper) {
+func WithRoundTripper(roundTripper http.RoundTripper) RoundTripperOption {
 	return func(r *RoundTripper) {
 		r.roundTripper = roundTripper
 	}
