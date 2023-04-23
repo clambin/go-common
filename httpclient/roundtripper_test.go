@@ -70,17 +70,13 @@ func TestRoundTripper_Collect(t *testing.T) {
 	registry.MustRegister(r)
 
 	c := &http.Client{Transport: r}
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		http.Error(w, "this is not the server you're looking for", http.StatusNotFound)
-	}))
-	defer s.Close()
 
-	req, _ := http.NewRequest(http.MethodGet, s.URL+"/", nil)
+	req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080/", nil)
 	resp, err := c.Do(req)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	req, _ = http.NewRequest(http.MethodGet, s.URL+"/invalid", nil)
+	req, _ = http.NewRequest(http.MethodGet, "http://localhost:8080/invalid", nil)
 	resp, err = c.Do(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
