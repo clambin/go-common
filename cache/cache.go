@@ -75,12 +75,11 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	if e, found := c.values[key]; found && !e.isExpired() {
-		return e.value, true
+	e, found := c.values[key]
+	if found {
+		found = !e.isExpired()
 	}
-
-	var value V
-	return value, false
+	return e.value, found
 }
 
 // GetKeys returns all keys in the cache.
