@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"runtime"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -116,4 +117,18 @@ func TestCache_Types(t *testing.T) {
 	v3, found3 := c3.Get(key)
 	assert.True(t, found3)
 	assert.Equal(t, "snafu", v3)
+}
+
+func BenchmarkCache_Get(b *testing.B) {
+	c := cache.New[int, string](time.Hour, 0)
+	for i := 0; i < 1e5; i++ {
+		c.Add(i, strconv.Itoa(i))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, ok := c.Get(1)
+		if !ok {
+			b.Fail()
+		}
+	}
 }

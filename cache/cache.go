@@ -24,7 +24,7 @@ type entry[V any] struct {
 }
 
 func (e entry[K]) isExpired() bool {
-	return !e.expiry.IsZero() && time.Now().After(e.expiry)
+	return !e.expiry.IsZero() && time.Until(e.expiry) < 0
 }
 
 // New creates a new Cache for the specified key and value types. The expiration parameter specifies the default time
