@@ -6,22 +6,11 @@ import (
 	"time"
 )
 
-// Cacher implements a cache interface
-type Cacher[K comparable, V any] interface {
-	Add(key K, value V)
-	AddWithExpiry(key K, value V, expiry time.Duration)
-	Get(key K) (V, bool)
-	GetKeys() []K
-	GetDefaultExpiration() time.Duration
-}
-
-// Cache implements the Cacher interface
+// Cache implements a generic cache with expiration timers for entries, with optional removal of expired items.
 type Cache[K comparable, V any] struct {
 	*realCache[K, V]
 	*scrubber[K, V]
 }
-
-var _ Cacher[int, string] = &Cache[int, string]{}
 
 type realCache[K comparable, V any] struct {
 	values     map[K]entry[V]
@@ -38,8 +27,9 @@ func (e entry[K]) isExpired() bool {
 	return !e.expiry.IsZero() && time.Now().After(e.expiry)
 }
 
-// New creates a new Cache for the specified key and value types.  expiration specifies the default time an entry can live
-// in the cache before expiring.  cleanup specifies how often the cache will remove expired items.
+// New creates a new Cache for the specified key and value types. The expiration parameter specifies the default time
+// an entry can live in the cache before expiring. The cleanup parameters specifies how often the cache will remove
+// expired items.
 func New[K comparable, V any](expiration, cleanup time.Duration) *Cache[K, V] {
 	c := &Cache[K, V]{
 		realCache: &realCache[K, V]{
