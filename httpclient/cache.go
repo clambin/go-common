@@ -12,7 +12,7 @@ import (
 
 type responseCache struct {
 	table CacheTable
-	cache cache.Cacher[string, []byte]
+	cache *cache.Cache[string, []byte]
 }
 
 func newCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) *responseCache {
