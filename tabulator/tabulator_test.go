@@ -183,11 +183,8 @@ func BenchmarkTabulator_Add_Same_Timestamp(b *testing.B) {
 	tab := tabulator.New("A")
 	for i := 0; i < b.N; i++ {
 		timestamp := time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
-		for j := 0; j < 10; j++ {
-			for k := 0; k < 100; k++ {
-				tab.Add(timestamp, "A", float64(i))
-			}
-			timestamp = timestamp.Add(24 * time.Hour)
+		for j := 0; j < 1000; j++ {
+			tab.Add(timestamp, "A", float64(i))
 		}
 	}
 }
