@@ -14,9 +14,9 @@ func TestSet_Add(t *testing.T) {
 		add      string
 		expected set.Set[string]
 	}{
-		{name: "empty", start: set.Create[string](), add: "A", expected: set.Create[string]("A")},
-		{name: "add", start: set.Create[string]("A"), add: "B", expected: set.Create[string]("A", "B")},
-		{name: "duplicate", start: set.Create[string]("A"), add: "A", expected: set.Create[string]("A")},
+		{name: "empty", start: set.Create[string](), add: "A", expected: set.Create("A")},
+		{name: "add", start: set.Create("A"), add: "B", expected: set.Create("A", "B")},
+		{name: "duplicate", start: set.Create("A"), add: "A", expected: set.Create("A")},
 	}
 
 	for _, tt := range tests {
@@ -35,9 +35,9 @@ func TestSet_Remove(t *testing.T) {
 		expected set.Set[string]
 	}{
 		{name: "empty", start: set.Create[string](), remove: "A", expected: set.Create[string]()},
-		{name: "remove", start: set.Create[string]("A", "B"), remove: "B", expected: set.Create[string]("A")},
-		{name: "remove last", start: set.Create[string]("A"), remove: "A", expected: set.Create[string]()},
-		{name: "non-existent", start: set.Create[string]("A"), remove: "B", expected: set.Create[string]("A")},
+		{name: "remove", start: set.Create("A", "B"), remove: "B", expected: set.Create("A")},
+		{name: "remove last", start: set.Create("A"), remove: "A", expected: set.Create[string]()},
+		{name: "non-existent", start: set.Create("A"), remove: "B", expected: set.Create("A")},
 	}
 
 	for _, tt := range tests {
@@ -48,7 +48,7 @@ func TestSet_Remove(t *testing.T) {
 	}
 }
 
-func TestSet_Has(t *testing.T) {
+func TestSet_Contains(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    set.Set[string]
@@ -74,8 +74,8 @@ func TestSet_List(t *testing.T) {
 		expected []string
 	}{
 		{name: "empty", input: set.Create[string](), expected: nil},
-		{name: "single", input: set.Create[string]("A"), expected: []string{"A"}},
-		{name: "multiple", input: set.Create[string]("B", "A"), expected: []string{"A", "B"}},
+		{name: "single", input: set.Create("A"), expected: []string{"A"}},
+		{name: "multiple", input: set.Create("B", "A"), expected: []string{"A", "B"}},
 	}
 
 	for _, tt := range tests {
@@ -153,9 +153,9 @@ func TestUnion(t *testing.T) {
 		expected set.Set[string]
 	}{
 		{name: "empty", expected: set.Create[string]()},
-		{name: "first empty", setB: set.Create[string]("A", "B"), expected: set.Create[string]("A", "B")},
-		{name: "second empty", setA: set.Create[string]("A", "B"), expected: set.Create[string]("A", "B")},
-		{name: "union", setA: set.Create[string]("A", "B"), setB: set.Create[string]("B", "C"), expected: set.Create[string]("A", "B", "C")},
+		{name: "first empty", setB: set.Create("A", "B"), expected: set.Create("A", "B")},
+		{name: "second empty", setA: set.Create("A", "B"), expected: set.Create("A", "B")},
+		{name: "union", setA: set.Create("A", "B"), setB: set.Create("B", "C"), expected: set.Create("A", "B", "C")},
 	}
 
 	for _, tt := range tests {
@@ -173,10 +173,10 @@ func TestIntersection(t *testing.T) {
 		expected set.Set[string]
 	}{
 		{name: "empty", expected: set.Create[string]()},
-		{name: "first empty", setB: set.Create[string]("A", "B"), expected: set.Create[string]()},
-		{name: "second empty", setA: set.Create[string]("A", "B"), expected: set.Create[string]()},
-		{name: "intersection", setA: set.Create[string]("A", "B"), setB: set.Create[string]("B", "C"), expected: set.Create[string]("B")},
-		{name: "no match", setA: set.Create[string]("A", "B"), setB: set.Create[string]("C", "D"), expected: set.Create[string]()},
+		{name: "first empty", setB: set.Create("A", "B"), expected: set.Create[string]()},
+		{name: "second empty", setA: set.Create("A", "B"), expected: set.Create[string]()},
+		{name: "intersection", setA: set.Create("A", "B"), setB: set.Create("B", "C"), expected: set.Create("B")},
+		{name: "no match", setA: set.Create("A", "B"), setB: set.Create("C", "D"), expected: set.Create[string]()},
 	}
 
 	for _, tt := range tests {
@@ -194,11 +194,11 @@ func TestDifference(t *testing.T) {
 		expected set.Set[string]
 	}{
 		{name: "empty", expected: set.Create[string]()},
-		{name: "first empty", setB: set.Create[string]("A", "B"), expected: set.Create[string]()},
-		{name: "second empty", setA: set.Create[string]("A", "B"), expected: set.Create[string]("A", "B")},
-		{name: "overlap", setA: set.Create[string]("A", "B"), setB: set.Create[string]("B", "C"), expected: set.Create[string]("A")},
-		{name: "full overlap", setA: set.Create[string]("A", "B"), setB: set.Create[string]("A", "B", "C"), expected: set.Create[string]()},
-		{name: "no overlap", setA: set.Create[string]("A", "B"), setB: set.Create[string]("C", "D"), expected: set.Create[string]("A", "B")},
+		{name: "first empty", setB: set.Create("A", "B"), expected: set.Create[string]()},
+		{name: "second empty", setA: set.Create("A", "B"), expected: set.Create("A", "B")},
+		{name: "overlap", setA: set.Create("A", "B"), setB: set.Create("B", "C"), expected: set.Create("A")},
+		{name: "full overlap", setA: set.Create("A", "B"), setB: set.Create("A", "B", "C"), expected: set.Create[string]()},
+		{name: "no overlap", setA: set.Create("A", "B"), setB: set.Create("C", "D"), expected: set.Create("A", "B")},
 	}
 
 	for _, tt := range tests {
