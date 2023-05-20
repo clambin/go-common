@@ -7,8 +7,8 @@ import (
 // Tabulator tabulates a set of entries in rows by timestamp and columns by label.  For performance reasons, data must
 // be added sequentially.
 type Tabulator struct {
-	timestamps Indexer[time.Time]
-	columns    Indexer[string]
+	timestamps indexer[time.Time]
+	columns    indexer[string]
 	data       [][]float64
 
 	lastTimestamp time.Time
@@ -18,8 +18,8 @@ type Tabulator struct {
 // New creates a new Tabulator
 func New(columns ...string) *Tabulator {
 	t := &Tabulator{
-		timestamps: MakeIndexer[time.Time](),
-		columns:    MakeIndexer[string](),
+		timestamps: makeIndexer[time.Time](),
+		columns:    makeIndexer[string](),
 	}
 	t.RegisterColumn(columns...)
 	return t
@@ -37,7 +37,7 @@ func (t *Tabulator) Add(timestamp time.Time, column string, value float64) bool 
 
 	var row int
 	// perf tweak: if data is mostly added in order, with many records for the same timestamp, cache the lastRow
-	// to avoid map lookups in Indexer.Add
+	// to avoid map lookups in indexer.Add
 	if timestamp.Equal(t.lastTimestamp) {
 		row = t.lastRow
 	} else {
@@ -131,7 +131,7 @@ func (t *Tabulator) Accumulate() {
 
 // Filter removes all rows that do not fall inside the specified time range. Is the specified time is zero, it will be ignored
 func (t *Tabulator) Filter(from, to time.Time) {
-	timestamps := MakeIndexer[time.Time]()
+	timestamps := makeIndexer[time.Time]()
 	d := make([][]float64, 0)
 
 	for _, timestamp := range t.GetTimestamps() {

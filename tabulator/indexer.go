@@ -9,17 +9,17 @@ type ordered interface {
 	time.Time | string
 }
 
-// Indexer holds a unique set of values, and records the order in which they were added.
+// indexer holds a unique set of values, and records the order in which they were added.
 // Currently, it supports string and time.Time data.
-type Indexer[T ordered] struct {
+type indexer[T ordered] struct {
 	values  []T
 	indices map[T]int
 	inOrder bool
 }
 
-// MakeIndexer returns a new indexer
-func MakeIndexer[T ordered]() Indexer[T] {
-	return Indexer[T]{
+// makeIndexer returns a new indexer
+func makeIndexer[T ordered]() indexer[T] {
+	return indexer[T]{
 		values:  make([]T, 0),
 		indices: make(map[T]int),
 		inOrder: true,
@@ -27,18 +27,18 @@ func MakeIndexer[T ordered]() Indexer[T] {
 }
 
 // GetIndex returns the index of a value (i.e. when that value was added)
-func (idx *Indexer[T]) GetIndex(value T) (index int, found bool) {
+func (idx *indexer[T]) GetIndex(value T) (index int, found bool) {
 	index, found = idx.indices[value]
 	return
 }
 
-// Count returns the number of values in the Indexer
-func (idx *Indexer[T]) Count() int {
+// Count returns the number of values in the indexer
+func (idx *indexer[T]) Count() int {
 	return len(idx.values)
 }
 
-// List returns the (sorted) values in the Indexer
-func (idx *Indexer[T]) List() (values []T) {
+// List returns the (sorted) values in the indexer
+func (idx *indexer[T]) List() []T {
 	if !idx.inOrder {
 		sort.Slice(idx.values, func(i, j int) bool { return isLessThan(idx.values[i], idx.values[j]) })
 		idx.inOrder = true
@@ -46,16 +46,14 @@ func (idx *Indexer[T]) List() (values []T) {
 	return idx.values
 }
 
-// Add adds a new value to the Indexer. It returns the index of that value and whether the value was actually added.
-func (idx *Indexer[T]) Add(value T) (index int, added bool) {
-	var found bool
-	index, found = idx.indices[value]
+// Add adds a new value to the indexer. It returns the index of that value and whether the value was actually added.
+func (idx *indexer[T]) Add(value T) (int, bool) {
+	index, found := idx.indices[value]
 
 	if found {
 		return index, false
 	}
 
-	added = true
 	index = len(idx.values)
 	idx.indices[value] = index
 
@@ -63,23 +61,23 @@ func (idx *Indexer[T]) Add(value T) (index int, added bool) {
 		idx.inOrder = !isLessThan(value, idx.values[index-1])
 	}
 	idx.values = append(idx.values, value)
-	return
+	return index, true
 }
 
-func isLessThan[T ordered](a, b T) (isLess bool) {
+func isLessThan[T ordered](a, b T) bool {
 	// this works around the fact that we can't type switch on T
 	var x interface{} = a
 	var y interface{} = b
 	switch (x).(type) {
 	case string:
-		isLess = x.(string) < y.(string)
+		return x.(string) < y.(string)
 	case time.Time:
-		isLess = x.(time.Time).Before(y.(time.Time))
+		return x.(time.Time).Before(y.(time.Time))
 	}
-	return
+	panic("unsupported type")
 }
 
-func (idx *Indexer[T]) Copy() Indexer[T] {
+func (idx *indexer[T]) Copy() indexer[T] {
 	values := make([]T, len(idx.values))
 	copy(values, idx.values)
 
@@ -88,7 +86,7 @@ func (idx *Indexer[T]) Copy() Indexer[T] {
 		indices[key] = value
 	}
 
-	return Indexer[T]{
+	return indexer[T]{
 		values:  values,
 		indices: indices,
 		inOrder: idx.inOrder,

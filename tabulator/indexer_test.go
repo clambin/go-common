@@ -1,8 +1,7 @@
-package tabulator_test
+package tabulator
 
 import (
 	"fmt"
-	"github.com/clambin/go-common/tabulator"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"testing"
@@ -10,7 +9,7 @@ import (
 )
 
 func TestIndexer_Time(t *testing.T) {
-	idx := tabulator.MakeIndexer[time.Time]()
+	idx := makeIndexer[time.Time]()
 	indices := make(map[time.Time]int)
 
 	const iterations = 100
@@ -33,7 +32,7 @@ func TestIndexer_Time(t *testing.T) {
 }
 
 func TestIndexer_String(t *testing.T) {
-	idx := tabulator.MakeIndexer[string]()
+	idx := makeIndexer[string]()
 	indices := make(map[string]int)
 
 	const iterations = 100
@@ -57,7 +56,7 @@ func TestIndexer_String(t *testing.T) {
 
 func TestIndexer_Reorder(t *testing.T) {
 	input := []string{"C", "B", "A"}
-	idx := tabulator.MakeIndexer[string]()
+	idx := makeIndexer[string]()
 
 	for index, value := range input {
 		i, added := idx.Add(value)
