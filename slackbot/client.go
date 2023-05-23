@@ -1,51 +1,40 @@
-package client
+package slackbot
 
 import (
 	"context"
 	"fmt"
+	"github.com/clambin/go-common/slackbot/internal/connector"
 	"github.com/slack-go/slack"
 	"golang.org/x/exp/slog"
 	"sync"
 )
 
-// SlackClient interface for a slackClient
-//
-//go:generate mockery --name SlackClient
-type SlackClient interface {
-	Run(ctx context.Context)
-	Send(channel string, attachments []slack.Attachment) (err error)
-	GetMessage() chan *slack.MessageEvent
-	GetChannels() (channelIDs []string, err error)
-	GetUserID() (string, error)
-}
-
 type slackClient struct {
-	slackClient  *slack.Client
-	slackRTM     *slack.RTM
+	connector    connector.SlackConnector
 	eventChannel chan *slack.MessageEvent
+	logger       *slog.Logger
 	connected    bool
 	userID       string
 	lock         sync.RWMutex
 }
 
-// New created a new slackClient
-func New(token string) SlackClient {
+// newSlackClient created a new slackClient
+func newSlackClient(token string, logger *slog.Logger) *slackClient {
 	return &slackClient{
-		slackClient:  slack.New(token),
+		connector:    connector.CreateConnector(token),
 		eventChannel: make(chan *slack.MessageEvent, 20),
+		logger:       logger,
 	}
 }
 
 // Run starts the slackClient
 func (c *slackClient) Run(ctx context.Context) {
-	c.slackRTM = c.slackClient.NewRTM()
-	go c.slackRTM.ManageConnection()
-	for running := true; running; {
+	for {
 		select {
-		case <-ctx.Done():
-			running = false
-		case msg := <-c.slackRTM.IncomingEvents:
+		case msg := <-c.connector.GetIncomingEvents():
 			c.processEvent(msg)
+		case <-ctx.Done():
+			return
 		}
 	}
 }
@@ -59,7 +48,7 @@ func (c *slackClient) GetMessage() chan *slack.MessageEvent {
 // This is either the bot's direct channel or any channels the bot has been invited to
 func (c *slackClient) GetChannels() ([]string, error) {
 	var channelIDs []string
-	channels, _, err := c.slackClient.GetConversationsForUser(&slack.GetConversationsForUserParameters{
+	channels, _, err := c.connector.GetConversationsForUser(&slack.GetConversationsForUserParameters{
 		Types: []string{"public_channel", "private_channel", "im"},
 	})
 	if err == nil {
@@ -70,14 +59,9 @@ func (c *slackClient) GetChannels() ([]string, error) {
 	return channelIDs, nil
 }
 
-// Send a message to slack.  if no channel is specified, the message is broadcast to all getChannels
-func (c *slackClient) Send(channel string, attachments []slack.Attachment) error {
-	_, _, err := c.slackRTM.PostMessage(
-		channel,
-		slack.MsgOptionAttachments(attachments...),
-		slack.MsgOptionAsUser(true),
-	)
-	return err
+// Send a message to slack.  If no channel is specified, the message is broadcast to all getChannels
+func (c *slackClient) Send(channelID string, attachments []slack.Attachment) error {
+	return c.connector.Post(channelID, attachments)
 }
 
 func (c *slackClient) setUserID(userID string) {
@@ -101,19 +85,18 @@ func (c *slackClient) GetUserID() (string, error) {
 func (c *slackClient) processEvent(event slack.RTMEvent) {
 	switch ev := event.Data.(type) {
 	// case *slack.HelloEvent:
-	//	log.Debug("hello")
+	//	slog.Debug("hello")
 	case *slack.ConnectedEvent:
 		c.setUserID(ev.Info.User.ID)
 		if !c.connected {
-			slog.Info("connected to slack")
+			c.logger.Info("connected to slack" /*, "userid", ev.Info.User.ID*/)
 			c.connected = true
 		}
 	case *slack.MessageEvent:
 		c.eventChannel <- ev
 	case *slack.RTMError:
-		slog.Error("error reading on slack RTM connection", ev)
+		c.logger.Error("error reading on slack RTM connection", "err", ev)
 	case *slack.InvalidAuthEvent:
-		slog.Warn("error received from slack: invalid credentials")
+		c.logger.Warn("error received from slack: invalid credentials")
 	}
-	return
 }

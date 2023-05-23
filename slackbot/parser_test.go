@@ -66,11 +66,13 @@ func TestParseCommand(t *testing.T) {
 		},
 	}
 
-	b := SlackBot{SlackClient: newSlackClient("123", nil)}
+	b := New("foo", "some-token", nil, nil)
+	b.client.userID = "123"
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			command, args := b.parseCommand(tt.input)
+			command, args, err := b.parseCommand(tt.input)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.command, command)
 			assert.Equal(t, len(tt.args), len(args))
 		})

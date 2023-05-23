@@ -14,7 +14,7 @@ func Example() {
 				Text:  "General Kenobi!",
 			}}
 		},
-	})
+	}, nil)
 
-	_ = b.Run(context.Background())
+	b.Run(context.Background())
 }

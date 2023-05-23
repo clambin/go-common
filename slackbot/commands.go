@@ -7,24 +7,24 @@ import (
 	"sync"
 )
 
-type commands struct {
+type commandRunner struct {
 	commands map[string]CommandFunc
 	lock     sync.RWMutex
 }
 
-func newCommands() *commands {
-	return &commands{
+func newCommandRunner() *commandRunner {
+	return &commandRunner{
 		commands: make(map[string]CommandFunc),
 	}
 }
 
-func (c *commands) Register(command string, callBack CommandFunc) {
+func (c *commandRunner) Register(command string, callBack CommandFunc) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.commands[command] = callBack
 }
 
-func (c *commands) Do(ctx context.Context, command string, args ...string) []slack.Attachment {
+func (c *commandRunner) Do(ctx context.Context, command string, args ...string) []slack.Attachment {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	callBack, ok := c.commands[command]
@@ -36,7 +36,7 @@ func (c *commands) Do(ctx context.Context, command string, args ...string) []sla
 	}
 	return callBack(ctx, args...)
 }
-func (c *commands) GetCommands() []string {
+func (c *commandRunner) GetCommands() []string {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	cmds := make([]string, 0, len(c.commands))

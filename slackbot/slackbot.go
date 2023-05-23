@@ -2,7 +2,6 @@ package slackbot
 
 import (
 	"context"
-	"github.com/clambin/go-common/slackbot/client"
 	"github.com/slack-go/slack"
 	"golang.org/x/exp/slog"
 	"regexp"
@@ -12,21 +11,25 @@ import (
 
 // SlackBot connects to Slack through Slack's Bot integration.
 type SlackBot struct {
-	client.SlackClient
+	client   *slackClient
 	name     string
-	commands *commands
-	lock     sync.RWMutex
+	commands *commandRunner
+	logger   *slog.Logger
 }
 
 // CommandFunc signature for command callback functions
 type CommandFunc func(ctx context.Context, args ...string) []slack.Attachment
 
 // New creates a new slackbot
-func New(name string, slackToken string, commands map[string]CommandFunc) *SlackBot {
+func New(name string, slackToken string, commands map[string]CommandFunc, logger *slog.Logger) *SlackBot {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	b := SlackBot{
-		name:        name,
-		commands:    newCommands(),
-		SlackClient: client.New(slackToken),
+		name:     name,
+		commands: newCommandRunner(),
+		client:   newSlackClient(slackToken, logger),
+		logger:   logger,
 	}
 
 	b.Register("help", b.doHelp)
@@ -45,53 +48,73 @@ func (b *SlackBot) Register(name string, command CommandFunc) {
 }
 
 // Run the slackbot
-func (b *SlackBot) Run(ctx context.Context) (err error) {
-	go b.SlackClient.Run(ctx)
-
-	for running := true; running; {
+func (b *SlackBot) Run(ctx context.Context) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() { defer wg.Done(); b.client.Run(ctx) }()
+	for {
 		select {
+		case message := <-b.client.GetMessage():
+			b.processMessage(ctx, message)
 		case <-ctx.Done():
-			running = false
-		case message := <-b.GetMessage():
-			command, args := b.parseCommand(message.Text)
-			if command != "" {
-				err = b.Send(message.Channel, b.commands.Do(ctx, command, args...))
-			}
-		}
-		if err != nil {
-			slog.Error("failed to post message on Slack", err)
+			wg.Wait()
+			return
 		}
 	}
-	return
 }
 
-func (b *SlackBot) Send(channel string, attachments []slack.Attachment) (err error) {
-	channels := []string{channel}
+func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEvent) {
+	b.logger.Debug("message received",
+		"user.id", message.User,
+		"user.name", message.Username,
+		"text", message.Text,
+	)
+
+	command, args, err := b.parseCommand(message.Text)
+	if err != nil {
+		b.logger.Error("failed to parse command", "err", err)
+		return
+	}
+	if command == "" {
+		return
+	}
+
+	b.logger.Debug("running command", "command", command, "args", args)
+	output := b.commands.Do(ctx, command, args...)
+
+	err = b.Send(message.Channel, output)
+	if err != nil {
+		b.logger.Error("failed to post to Slack", "err", err)
+	}
+}
+
+func (b *SlackBot) Send(channel string, attachments []slack.Attachment) error {
+	channelIDs := []string{channel}
 	if channel == "" {
-		if channels, err = b.GetChannels(); err != nil {
+		var err error
+		if channelIDs, err = b.client.GetChannels(); err != nil {
 			return err
 		}
 	}
 
-	for _, c := range channels {
-		if err = b.SlackClient.Send(c, attachments); err != nil {
-			break
+	for _, c := range channelIDs {
+		if err := b.client.Send(c, attachments); err != nil {
+			return err
 		}
 	}
-	return err
+	return nil
 }
 
-func (b *SlackBot) parseCommand(input string) (command string, args []string) {
-	userID, err := b.SlackClient.GetUserID()
+func (b *SlackBot) parseCommand(input string) (string, []string, error) {
+	userID, err := b.client.GetUserID()
 	if err != nil {
-		panic("we received a message but user ID not yet set up? " + err.Error())
+		return "", nil, err
 	}
 	words := tokenizeText(input)
-	if len(words) > 1 && words[0] == "<@"+userID+">" {
-		command = words[1]
-		args = words[2:]
+	if len(words) == 0 || words[0] != "<@"+userID+">" {
+		return "", nil, nil
 	}
-	return
+	return words[1], words[2:], nil
 }
 
 func tokenizeText(input string) (output []string) {

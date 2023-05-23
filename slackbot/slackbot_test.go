@@ -2,7 +2,7 @@ package slackbot
 
 import (
 	"context"
-	"github.com/clambin/go-common/slackbot/client"
+	"github.com/clambin/go-common/slackbot/internal/connector"
 	"github.com/slack-go/slack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,68 +11,71 @@ import (
 )
 
 func TestSlackBot_Run(t *testing.T) {
-	b := New(t.Name(), "some-token", nil)
-	c := newSlackClient("123", []string{"foo"})
-	b.SlackClient = c
+	b := New("foo", "some-token", nil, nil)
+	f := connector.NewFakeConnector()
+	b.client.connector = f
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		assert.NoError(t, b.Run(ctx))
+		b.Run(ctx)
 	}()
 
-	c.fromSlack <- &slack.MessageEvent{Msg: slack.Msg{
-		Name: "foo", User: "321", Channel: "foo", Text: "<@123> version",
-	}}
+	f.Connect()
+	f.IncomingMessage("123", "<@123> version")
 
-	msg := <-c.toSlack
-	require.Len(t, msg.attachments, 1)
-	assert.Equal(t, t.Name(), msg.attachments[0].Text)
+	msg := <-f.ToSlack
+	assert.Equal(t, connector.PostedMessage{ChannelID: "123", Attachments: []slack.Attachment{{Color: "good", Text: "foo"}}}, msg)
 
 	cancel()
 	wg.Wait()
 }
 
 func TestSlackBot_Send(t *testing.T) {
-	channels := []string{"foo", "bar"}
-	c := newSlackClient("123", channels)
-	b := New(t.Name(), "some-token", nil)
-	b.SlackClient = c
+	b := New(t.Name(), "some-token", nil, nil)
+	f := connector.NewFakeConnector()
+	b.client.connector = f
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 
 	wg.Add(1)
-	go func() { defer wg.Done(); c.Run(ctx) }()
+	go func() { defer wg.Done(); b.Run(ctx) }()
 
 	err := b.Send("bar", []slack.Attachment{{
 		Color: "good",
 		Title: "hello",
 		Text:  "world",
 	}})
+	require.NoError(t, err)
 
-	sent := <-c.toSlack
-
-	assert.NoError(t, err)
-	assert.Equal(t, "bar", sent.channel)
-	require.Len(t, sent.attachments, 1)
-	assert.Equal(t, "good", sent.attachments[0].Color)
-	assert.Equal(t, "hello", sent.attachments[0].Title)
-	assert.Equal(t, "world", sent.attachments[0].Text)
+	assert.Equal(t, connector.PostedMessage{
+		ChannelID: "bar",
+		Attachments: []slack.Attachment{{
+			Color: "good",
+			Title: "hello",
+			Text:  "world",
+		}},
+	}, <-f.ToSlack)
 
 	err = b.Send("", []slack.Attachment{{
 		Color: "good",
 		Title: "hello",
 		Text:  "world",
 	}})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	for range channels {
-		sent = <-c.toSlack
-		assert.Contains(t, channels, sent.channel)
-	}
+	assert.Equal(t, connector.PostedMessage{
+		ChannelID: "123",
+		Attachments: []slack.Attachment{{
+			Color: "good",
+			Title: "hello",
+			Text:  "world",
+		}},
+	}, <-f.ToSlack)
+
 	cancel()
 	wg.Wait()
 }
@@ -85,17 +88,19 @@ func TestSlackBot_Commands(t *testing.T) {
 		"bar": func(_ context.Context, _ ...string) []slack.Attachment {
 			return []slack.Attachment{}
 		},
-	})
-	c := newSlackClient("123", []string{"foo", "bar"})
-	b.SlackClient = c
+	}, nil)
+	f := connector.NewFakeConnector()
+	b.client.connector = f
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		assert.NoError(t, b.Run(ctx))
+		b.Run(ctx)
 	}()
+
+	f.Connect()
 
 	tests := []struct {
 		command string
@@ -122,26 +127,24 @@ func TestSlackBot_Commands(t *testing.T) {
 			text:    "snafu",
 		},
 		{
-			command: "invalid command",
-			text:    "unrecognized command",
+			command: "bar",
 		},
 		{
-			command: "bar",
+			command: "invalid command",
+			text:    "unrecognized command",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.command, func(t *testing.T) {
 
-			c.fromSlack <- &slack.MessageEvent{Msg: slack.Msg{
-				Name: "foo", User: "321", Channel: "foo", Text: "<@123> " + tt.command,
-			}}
+			f.IncomingMessage("foo", "<@123> "+tt.command)
 
-			msg := <-c.toSlack
+			msg := <-f.ToSlack
 			if tt.text != "" {
-				require.Len(t, msg.attachments, 1)
-				assert.Equal(t, tt.title, msg.attachments[0].Title)
-				assert.Equal(t, tt.text, msg.attachments[0].Text)
+				require.Len(t, msg.Attachments, 1)
+				assert.Equal(t, tt.title, msg.Attachments[0].Title)
+				assert.Equal(t, tt.text, msg.Attachments[0].Text)
 			}
 		})
 	}
@@ -149,55 +152,3 @@ func TestSlackBot_Commands(t *testing.T) {
 	cancel()
 	wg.Wait()
 }
-
-type slackMessage struct {
-	channel     string
-	attachments []slack.Attachment
-}
-
-type slackClient struct {
-	userId    string
-	channels  []string
-	fromSlack chan *slack.MessageEvent
-	toSlack   chan *slackMessage
-}
-
-func newSlackClient(userId string, channels []string) *slackClient {
-	return &slackClient{
-		userId:    userId,
-		channels:  channels,
-		fromSlack: make(chan *slack.MessageEvent, 10),
-		toSlack:   make(chan *slackMessage, 10),
-	}
-}
-
-func (s slackClient) Run(ctx context.Context) {
-	for running := true; running; {
-		select {
-		case <-ctx.Done():
-			running = false
-		}
-	}
-}
-
-func (s slackClient) Send(channel string, attachments []slack.Attachment) (err error) {
-	s.toSlack <- &slackMessage{
-		channel:     channel,
-		attachments: attachments,
-	}
-	return nil
-}
-
-func (s slackClient) GetMessage() chan *slack.MessageEvent {
-	return s.fromSlack
-}
-
-func (s slackClient) GetChannels() (channelIDs []string, err error) {
-	return s.channels, nil
-}
-
-func (s slackClient) GetUserID() (string, error) {
-	return s.userId, nil
-}
-
-var _ client.SlackClient = &slackClient{}
