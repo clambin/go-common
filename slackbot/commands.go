@@ -12,12 +12,6 @@ type commandRunner struct {
 	lock     sync.RWMutex
 }
 
-func newCommandRunner() *commandRunner {
-	return &commandRunner{
-		commands: make(map[string]CommandFunc),
-	}
-}
-
 func (c *commandRunner) Register(command string, callBack CommandFunc) {
 	c.lock.Lock()
 	defer c.lock.Unlock()

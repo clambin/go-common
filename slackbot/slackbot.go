@@ -2,6 +2,7 @@ package slackbot
 
 import (
 	"context"
+	"fmt"
 	"github.com/slack-go/slack"
 	"golang.org/x/exp/slog"
 	"regexp"
@@ -11,40 +12,39 @@ import (
 
 // SlackBot connects to Slack through Slack's Bot integration.
 type SlackBot struct {
-	client   *slackClient
-	name     string
-	commands *commandRunner
-	logger   *slog.Logger
+	client        *slackClient
+	name          string
+	commands      map[string]CommandFunc
+	commandRunner *commandRunner
+	logger        *slog.Logger
 }
 
 // CommandFunc signature for command callback functions
 type CommandFunc func(ctx context.Context, args ...string) []slack.Attachment
 
 // New creates a new slackbot
-func New(name string, slackToken string, commands map[string]CommandFunc, logger *slog.Logger) *SlackBot {
-	if logger == nil {
-		logger = slog.Default()
+func New(slackToken string, options ...Option) *SlackBot {
+	b := &SlackBot{
+		name:     "slackbot",
+		commands: make(map[string]CommandFunc),
+		logger:   slog.Default(),
 	}
-	b := SlackBot{
-		name:     name,
-		commands: newCommandRunner(),
-		client:   newSlackClient(slackToken, logger),
-		logger:   logger,
-	}
+	b.commands["help"] = b.doHelp
+	b.commands["version"] = b.doVersion
 
-	b.Register("help", b.doHelp)
-	b.Register("version", b.doVersion)
-
-	for cmd, callbackFunction := range commands {
-		b.commands.Register(cmd, callbackFunction)
+	for _, option := range options {
+		option(b)
 	}
 
-	return &b
+	b.client = newSlackClient(slackToken, b.logger)
+	b.commandRunner = &commandRunner{commands: b.commands}
+
+	return b
 }
 
 // Register adds a new command
 func (b *SlackBot) Register(name string, command CommandFunc) {
-	b.commands.Register(name, command)
+	b.commandRunner.Register(name, command)
 }
 
 // Run the slackbot
@@ -55,7 +55,9 @@ func (b *SlackBot) Run(ctx context.Context) {
 	for {
 		select {
 		case message := <-b.client.GetMessage():
-			b.processMessage(ctx, message)
+			if err := b.processMessage(ctx, message); err != nil {
+				b.logger.Error("failed to process message", "err", err)
+			}
 		case <-ctx.Done():
 			wg.Wait()
 			return
@@ -63,7 +65,7 @@ func (b *SlackBot) Run(ctx context.Context) {
 	}
 }
 
-func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEvent) {
+func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEvent) error {
 	b.logger.Debug("message received",
 		"user.id", message.User,
 		"user.name", message.Username,
@@ -72,20 +74,21 @@ func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEve
 
 	command, args, err := b.parseCommand(message.Text)
 	if err != nil {
-		b.logger.Error("failed to parse command", "err", err)
-		return
+		return fmt.Errorf("parse failed: %w", err)
 	}
+
 	if command == "" {
-		return
+		return nil
 	}
 
 	b.logger.Debug("running command", "command", command, "args", args)
-	output := b.commands.Do(ctx, command, args...)
+	output := b.commandRunner.Do(ctx, command, args...)
 
 	err = b.Send(message.Channel, output)
 	if err != nil {
-		b.logger.Error("failed to post to Slack", "err", err)
+		err = fmt.Errorf("post to Slack failed: %w", err)
 	}
+	return err
 }
 
 func (b *SlackBot) Send(channel string, attachments []slack.Attachment) error {
@@ -117,25 +120,25 @@ func (b *SlackBot) parseCommand(input string) (string, []string, error) {
 	return words[1], words[2:], nil
 }
 
-func tokenizeText(input string) (output []string) {
+func tokenizeText(input string) []string {
 	cleanInput := input
 	for _, quote := range []string{"“", "”", "'"} {
 		cleanInput = strings.ReplaceAll(cleanInput, quote, "\"")
 	}
 	r := regexp.MustCompile(`[^\s"]+|"([^"]*)"`)
-	output = r.FindAllString(cleanInput, -1)
+	output := r.FindAllString(cleanInput, -1)
 
 	for index, word := range output {
 		output[index] = strings.Trim(word, "\"")
 	}
-	return
+	return output
 }
 
 func (b *SlackBot) doHelp(_ context.Context, _ ...string) []slack.Attachment {
 	return []slack.Attachment{{
 		Color: "good",
 		Title: "supported commands",
-		Text:  strings.Join(b.commands.GetCommands(), ", "),
+		Text:  strings.Join(b.commandRunner.GetCommands(), ", "),
 	}}
 }
 

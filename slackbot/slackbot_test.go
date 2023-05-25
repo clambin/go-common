@@ -11,7 +11,7 @@ import (
 )
 
 func TestSlackBot_Run(t *testing.T) {
-	b := New("foo", "some-token", nil, nil)
+	b := New("some-token")
 	f := connector.NewFakeConnector()
 	b.client.connector = f
 
@@ -27,14 +27,14 @@ func TestSlackBot_Run(t *testing.T) {
 	f.IncomingMessage("123", "<@123> version")
 
 	msg := <-f.ToSlack
-	assert.Equal(t, connector.PostedMessage{ChannelID: "123", Attachments: []slack.Attachment{{Color: "good", Text: "foo"}}}, msg)
+	assert.Equal(t, connector.PostedMessage{ChannelID: "123", Attachments: []slack.Attachment{{Color: "good", Text: "slackbot"}}}, msg)
 
 	cancel()
 	wg.Wait()
 }
 
 func TestSlackBot_Send(t *testing.T) {
-	b := New(t.Name(), "some-token", nil, nil)
+	b := New("some-token")
 	f := connector.NewFakeConnector()
 	b.client.connector = f
 
@@ -81,14 +81,18 @@ func TestSlackBot_Send(t *testing.T) {
 }
 
 func TestSlackBot_Commands(t *testing.T) {
-	b := New("command-test", "some-token", map[string]CommandFunc{
-		"foo": func(_ context.Context, _ ...string) []slack.Attachment {
-			return []slack.Attachment{{Color: "good", Title: "bar", Text: "snafu"}}
-		},
-		"bar": func(_ context.Context, _ ...string) []slack.Attachment {
-			return []slack.Attachment{}
-		},
-	}, nil)
+	b := New("some-token",
+		WithCommands(map[string]CommandFunc{
+			"foo": func(_ context.Context, _ ...string) []slack.Attachment {
+				return []slack.Attachment{{Color: "good", Title: "bar", Text: "snafu"}}
+			},
+		}),
+		WithName("command-test"),
+	)
+	b.Register("bar", func(_ context.Context, _ ...string) []slack.Attachment {
+		return []slack.Attachment{}
+	})
+
 	f := connector.NewFakeConnector()
 	b.client.connector = f
 

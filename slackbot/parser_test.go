@@ -66,7 +66,7 @@ func TestParseCommand(t *testing.T) {
 		},
 	}
 
-	b := New("foo", "some-token", nil, nil)
+	b := New("some-token")
 	b.client.userID = "123"
 
 	for _, tt := range tests {
