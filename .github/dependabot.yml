@@ -24,6 +24,10 @@ updates:
     directory: "/cache"
     schedule:
       interval: "daily"
+  - package-ecosystem: "gomod"
+    directory: "/taskmanager"
+    schedule:
+      interval: "daily"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

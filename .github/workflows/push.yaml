@@ -4,9 +4,7 @@ on:
   push:
     branches:
       - main
-      - httpserver
-      - httpclient
-      - go120
+      - taskmanager
 
 jobs:
   test:
@@ -23,6 +21,7 @@ jobs:
           - slackbot
           - set
           - tabulator
+          - taskmanager
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4

@@ -48,7 +48,7 @@ func (b *SlackBot) Register(name string, command CommandFunc) {
 }
 
 // Run the slackbot
-func (b *SlackBot) Run(ctx context.Context) {
+func (b *SlackBot) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() { defer wg.Done(); b.client.Run(ctx) }()
@@ -60,7 +60,7 @@ func (b *SlackBot) Run(ctx context.Context) {
 			}
 		case <-ctx.Done():
 			wg.Wait()
-			return
+			return nil
 		}
 	}
 }

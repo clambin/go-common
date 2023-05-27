@@ -9,6 +9,7 @@ on:
       - 'set/v*'
       - 'slackbot/v*'
       - 'tabulator/v*'
+      - 'taskmanager/v*'
 
 jobs:
   test:
@@ -25,6 +26,7 @@ jobs:
           - slackbot
           - set
           - tabulator
+          - taskmanager
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
