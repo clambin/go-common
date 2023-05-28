@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/clambin/go-common/taskmanager"
 	"github.com/clambin/go-common/taskmanager/httpserver"
+	"github.com/clambin/go-common/taskmanager/prometheus"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,6 +13,13 @@ import (
 func Example() {
 	m := taskmanager.New()
 
+	// Add a Goroutine. We use TaskFunc to convert a func to a Task
+	// without having to declare a struct that adheres to the Task interface.
+	_ = m.Add(taskmanager.TaskFunc(func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}))
+
 	// Add an HTTP Server.
 	r := http.NewServeMux()
 	r.HandleFunc("/test", func(w http.ResponseWriter, _ *http.Request) {
@@ -19,12 +27,8 @@ func Example() {
 	})
 	_ = m.Add(httpserver.New(":8080", r))
 
-	// Add a Goroutine. We use TaskFunc to convert a func to a Task
-	// without having to declare a struct that adheres to the Task interface.
-	_ = m.Add(taskmanager.TaskFunc(func(ctx context.Context) error {
-		<-ctx.Done()
-		return ctx.Err()
-	}))
+	// Add a Prometheus server
+	_ = m.Add(prometheus.New(prometheus.WithAddr(":9092")))
 
 	// Run until the program is interrupted.
 	ctx, done := signal.NotifyContext(context.Background(), os.Interrupt)
