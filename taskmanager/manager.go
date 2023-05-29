@@ -53,7 +53,11 @@ func (m *Manager) Run(ctx context.Context) error {
 	defer cancel()
 
 	ch := make(chan error)
-	m.startTasks(subCtx, ch)
+	for _, task := range m.tasks {
+		go func(t Task) {
+			ch <- t.Run(subCtx)
+		}(task)
+	}
 
 	select {
 	case <-ctx.Done():
@@ -61,14 +65,6 @@ func (m *Manager) Run(ctx context.Context) error {
 		return m.shutdown(ch)
 	case err := <-ch:
 		return err
-	}
-}
-
-func (m *Manager) startTasks(ctx context.Context, ch chan error) {
-	for _, task := range m.tasks {
-		go func(t Task) {
-			ch <- t.Run(ctx)
-		}(task)
 	}
 }
 

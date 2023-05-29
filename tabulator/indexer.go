@@ -20,7 +20,7 @@ type indexer[T ordered] struct {
 // makeIndexer returns a new indexer
 func makeIndexer[T ordered]() indexer[T] {
 	return indexer[T]{
-		values:  make([]T, 0),
+		//values:  make([]T, 0),
 		indices: make(map[T]int),
 		inOrder: true,
 	}

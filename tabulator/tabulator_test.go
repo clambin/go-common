@@ -202,3 +202,20 @@ func BenchmarkTabulator_Accumulate(b *testing.B) {
 		d.Accumulate()
 	}
 }
+
+func BenchmarkTabulator_Filter(b *testing.B) {
+	d := tabulator.New("A")
+	b.ResetTimer()
+	timestamp := time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
+	for day := 0; day < 365; day++ {
+		d.Add(timestamp, "A", float64(day))
+		timestamp = timestamp.Add(24 * time.Hour)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		d.Filter(
+			time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC),
+			time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC),
+		)
+	}
+}

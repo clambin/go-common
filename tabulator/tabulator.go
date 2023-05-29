@@ -71,6 +71,7 @@ func (t *Tabulator) Set(timestamp time.Time, column string, value float64) bool 
 	return true
 }
 
+// RegisterColumn adds the specified columns to the table.
 func (t *Tabulator) RegisterColumn(column ...string) {
 	for _, c := range column {
 		t.ensureColumnExists(c)
@@ -116,7 +117,7 @@ func (t *Tabulator) GetValues(columnName string) ([]float64, bool) {
 	return values, ok
 }
 
-// Accumulate increments the values in each column
+// Accumulate increments the values in each column.
 func (t *Tabulator) Accumulate() {
 	accumulated := make([]float64, t.columns.Count())
 
@@ -129,10 +130,11 @@ func (t *Tabulator) Accumulate() {
 	}
 }
 
-// Filter removes all rows that do not fall inside the specified time range. Is the specified time is zero, it will be ignored
+// Filter removes all rows that do not fall inside the specified time range. If the specified time is zero, it will be ignored.
 func (t *Tabulator) Filter(from, to time.Time) {
 	timestamps := makeIndexer[time.Time]()
-	d := make([][]float64, 0)
+	//var d [][]float64
+	d := make([][]float64, 0, len(t.data))
 
 	for _, timestamp := range t.GetTimestamps() {
 		if !from.IsZero() && timestamp.Before(from) {
