@@ -128,8 +128,7 @@ func (t *Tabulator) Accumulate() {
 
 // Filter removes all rows that do not fall inside the specified time range. If the specified time is zero, it will be ignored.
 func (t *Tabulator) Filter(from, to time.Time) {
-	timestamps := makeIndexer[time.Time]()
-	//var d [][]float64
+	timestamps := make([]time.Time, 0, len(t.data))
 	d := make([][]float64, 0, len(t.data))
 
 	for _, timestamp := range t.GetTimestamps() {
@@ -140,11 +139,11 @@ func (t *Tabulator) Filter(from, to time.Time) {
 			continue
 		}
 		row, _ := t.timestamps.GetIndex(timestamp)
-		timestamps.Add(timestamp)
+		timestamps = append(timestamps, timestamp)
 		d = append(d, t.data[row])
 	}
 
-	t.timestamps = timestamps
+	t.timestamps = makeIndexerFromData(timestamps)
 	t.data = d
 }
 

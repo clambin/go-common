@@ -26,6 +26,24 @@ func makeIndexer[T ordered]() indexer[T] {
 	}
 }
 
+// makeIndexerFromData returns a new indexer, initialized with the provided data.
+func makeIndexerFromData[T ordered](data []T) indexer[T] {
+	index := indexer[T]{
+		values:  data,
+		indices: make(map[T]int),
+		inOrder: true,
+	}
+
+	var previous T
+	for row, entry := range data {
+		if !isLessThan(previous, entry) {
+			index.inOrder = false
+		}
+		index.indices[entry] = row
+	}
+	return index
+}
+
 // GetIndex returns the index of a value (i.e. when that value was added)
 func (idx *indexer[T]) GetIndex(value T) (index int, found bool) {
 	index, found = idx.indices[value]
