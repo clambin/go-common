@@ -1,4 +1,4 @@
-# slackbot
+# taskmanager
 ![Test](https://github.com/clambin/go-common/workflows/Test/badge.svg)
 [![GoDoc](https://pkg.go.dev/badge/github.com/clambin/go-common/taskmanager?utm_source=godoc)](http://pkg.go.dev/github.com/clambin/go-common/taskmanager)
 
