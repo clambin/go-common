@@ -30,6 +30,17 @@ func New(columns ...string) *Tabulator {
 //
 // Returns false if the column does not exist. Use RegisterColumn to add it first.
 func (t *Tabulator) Add(timestamp time.Time, column string, value float64) bool {
+	return t.addOrSet(timestamp, column, value, true)
+}
+
+// Set sets the value for a specified timestamp and column to the table.
+//
+// Returns false if the column does not exist. Use RegisterColumn to add it first.
+func (t *Tabulator) Set(timestamp time.Time, column string, value float64) bool {
+	return t.addOrSet(timestamp, column, value, false)
+}
+
+func (t *Tabulator) addOrSet(timestamp time.Time, column string, value float64, add bool) bool {
 	col, found := t.columns.GetIndex(column)
 	if !found {
 		return false
@@ -49,24 +60,9 @@ func (t *Tabulator) Add(timestamp time.Time, column string, value float64) bool 
 		t.lastRow = row
 	}
 
-	t.data[row][col] += value
-	return true
-}
-
-// Set sets the value for a specified timestamp and column to the table.
-//
-// Returns false if the column does not exist. Use RegisterColumn to add it first.
-func (t *Tabulator) Set(timestamp time.Time, column string, value float64) bool {
-	col, found := t.columns.GetIndex(column)
-	if !found {
-		return false
+	if add {
+		value += t.data[row][col]
 	}
-
-	row, added := t.timestamps.Add(timestamp)
-	if added {
-		t.data = append(t.data, make([]float64, t.columns.Count()))
-	}
-
 	t.data[row][col] = value
 	return true
 }

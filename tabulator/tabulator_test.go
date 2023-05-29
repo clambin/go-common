@@ -4,6 +4,7 @@ import (
 	"github.com/clambin/go-common/tabulator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"math/rand"
 	"testing"
 	"time"
 )
@@ -156,25 +157,42 @@ func TestTabulator_Copy(t *testing.T) {
 }
 
 func BenchmarkTabulator_Add(b *testing.B) {
+	timestamps := make([]time.Time, 365)
+	timestamp := time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
+	for day := 0; day < 365; day++ {
+		timestamps[day] = timestamp
+		timestamp = timestamp.Add(24 * time.Hour)
+	}
+
 	d := tabulator.New("A")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		timestamp := time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
-		for day := 0; day < 5*365; day++ {
-			d.Add(timestamp, "A", float64(day))
-			timestamp = timestamp.Add(24 * time.Hour)
+		for day := range timestamps {
+			for iter := 0; iter < 100; iter++ {
+				d.Add(timestamps[day], "A", float64(iter))
+			}
 		}
 	}
 }
 
 func BenchmarkTabulator_Add_OutOfOrder(b *testing.B) {
+	timestamps := make([]time.Time, 365)
+	timestamp := time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
+	for day := 0; day < 365; day++ {
+		timestamps[day] = timestamp
+		timestamp = timestamp.Add(24 * time.Hour)
+	}
+	indexes := make([]int, 365*100)
+	for i := range indexes {
+		indexes[i] = int(rand.Int31n(365))
+	}
+
 	d := tabulator.New("A")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		timestamp := time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
-		for day := 0; day < 5*365; day++ {
-			d.Add(timestamp, "A", float64(day))
-			timestamp = timestamp.Add(-24 * time.Hour)
+		for iter := 0; iter < 100*365; iter++ {
+			timestamp = timestamps[indexes[iter]]
+			d.Add(timestamp, "A", float64(i))
 		}
 	}
 }
