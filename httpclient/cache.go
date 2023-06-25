@@ -6,7 +6,6 @@ import (
 	"github.com/clambin/go-common/cache"
 	"net/http"
 	"net/http/httputil"
-	"sync"
 	"time"
 )
 
@@ -23,6 +22,12 @@ func newCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) *r
 	c.table.mustCompile()
 	return c
 }
+
+/*
+var readerPool = sync.Pool{
+	New: func() any { return bufio.NewReader(nil) },
+}
+*/
 
 func (c *responseCache) get(req *http.Request) (string, *http.Response, bool, error) {
 	key := getCacheKey(req)
@@ -69,8 +74,4 @@ func (c *responseCache) shouldCache(r *http.Request) (cache bool, expiry time.Du
 
 func getCacheKey(r *http.Request) string {
 	return r.Method + " | " + r.URL.Path
-}
-
-var readerPool = sync.Pool{
-	New: func() any { return bufio.NewReader(nil) },
 }
