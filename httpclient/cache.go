@@ -31,12 +31,14 @@ func (c *responseCache) get(req *http.Request) (string, *http.Response, bool, er
 		return key, nil, false, nil
 	}
 
+	// TODO: this creates a race condition between setting up the bufio.Reader from the pool and a client reading the response body?
 	// avoid creating bufio.Reader for each cached request
 	// doing same for bytes.Buffer gives negligible improvements
-	r := readerPool.Get().(*bufio.Reader)
-	defer readerPool.Put(r)
-	r.Reset(bytes.NewBuffer(body))
+	//r := readerPool.Get().(*bufio.Reader)
+	//defer readerPool.Put(r)
+	//r.Reset(bytes.NewBuffer(body))
 
+	r := bufio.NewReader(bytes.NewReader(body))
 	resp, err := http.ReadResponse(r, req)
 	if err == nil {
 		resp.Request = req

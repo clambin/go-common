@@ -1,10 +1,12 @@
 package httpclient_test
 
 import (
+	"context"
 	"github.com/clambin/go-common/httpclient"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/semaphore"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -59,6 +61,41 @@ func TestRoundTripper_WithCache(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, s.URL+"/bar", nil)
 	_, err := c.Do(req)
 	assert.Error(t, err)
+}
+
+func TestRoundTripper_WithCache_Stress(t *testing.T) {
+	var bigResponse string
+	for i := 0; i < 10000; i++ {
+		bigResponse += "A"
+	}
+
+	r := httpclient.NewRoundTripper(httpclient.WithCache(httpclient.DefaultCacheTable, time.Minute, 5*time.Minute))
+	c := &http.Client{Transport: r}
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(bigResponse))
+	}))
+
+	const maxParallel = 100
+	const Iterations = 10000
+
+	p := semaphore.NewWeighted(maxParallel)
+	ctx := context.Background()
+	for i := 0; i < Iterations; i++ {
+		require.NoError(t, p.Acquire(ctx, 1))
+		go func() {
+			defer p.Release(1)
+			req, _ := http.NewRequest(http.MethodGet, s.URL+"/foo", nil)
+			resp, err := c.Do(req)
+			require.NoError(t, err)
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Equal(t, bigResponse, string(body))
+
+			_ = resp.Body.Close()
+		}()
+	}
+	require.NoError(t, p.Acquire(ctx, maxParallel))
 }
 
 func TestRoundTripper_Collect(t *testing.T) {
