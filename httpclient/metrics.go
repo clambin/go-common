@@ -50,8 +50,6 @@ func (m *instrumentedRoundTripper) Collect(metrics chan<- prometheus.Metric) {
 type roundTripperMetrics struct {
 	latency *prometheus.SummaryVec // measures latency of an API call
 	errors  *prometheus.CounterVec // measures any errors returned by an API call
-	cache   *prometheus.CounterVec // measures number of times the cache has been consulted
-	hits    *prometheus.CounterVec // measures the number of times the cache was used
 }
 
 func newMetrics(namespace, subsystem, application string) roundTripperMetrics {
