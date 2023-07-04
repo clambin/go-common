@@ -20,7 +20,7 @@ type limiter struct {
 	maxInFlight int
 }
 
-// WithLimiter creates a RoundTripper that limits the concurrent http requests to maxParallel
+// WithLimiter creates a RoundTripper that limits the number concurrent http requests to maxParallel.
 func WithLimiter(maxParallel int64) Option {
 	return WithInstrumentedLimiter(maxParallel, "", "", "")
 }

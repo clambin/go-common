@@ -17,21 +17,6 @@ type RoundTripper struct {
 	http.HandlerFunc
 }
 
-// Option is a function that can be passed to NetRoundTripper to specify the behaviour of the RoundTripper.
-// See WithMetrics, WithCache for examples.
-type Option func(current http.RoundTripper) http.RoundTripper
-
-// The RoundTripperFunc type is an adapter to allow the use of
-// ordinary functions as HTTP roundTrippers. If f is a function
-// with the appropriate signature, RoundTripperFunc(f) is a
-// roundTripper that calls f.
-type RoundTripperFunc func(*http.Request) (*http.Response, error)
-
-// RoundTrip calls f(req)
-func (f RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req)
-}
-
 // NewRoundTripper returns a RoundTripper that implements the behaviour as specified by the different Option parameters.
 // NewRoundTripper will construct a cascading roundTripper in the order of the provided options. E.g.
 //
@@ -82,6 +67,19 @@ func (r RoundTripper) Collect(metrics chan<- prometheus.Metric) {
 	for _, c := range r.collectors {
 		c.Collect(metrics)
 	}
+}
+
+// Option is a function that can be passed to NewRoundTripper to specify the behaviour of the RoundTripper.
+// See WithMetrics, WithCache, etc. for examples.
+type Option func(current http.RoundTripper) http.RoundTripper
+
+// The RoundTripperFunc type is an adapter to allow the use of ordinary functions as HTTP roundTrippers.
+// If f is a function with the appropriate signature, RoundTripperFunc(f) is a roundTripper that calls f.
+type RoundTripperFunc func(*http.Request) (*http.Response, error)
+
+// RoundTrip calls f(req)
+func (f RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 // WithRoundTripper specifies the http.RoundTripper to make the final http client call. If no WithRoundTripper is

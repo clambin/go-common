@@ -5,6 +5,10 @@ import (
 	"net/http"
 )
 
+// WithMetrics creates a RoundTripper that measures latency and errors of outbound requests.
+//
+// namespace and subsystem are prepended to the metric names, e.g. api_latenct will be called foo_bar_api_latency
+// if namespace and subsystem are set to foo and bar respectively. Application will be set in the metrics' application label.
 func WithMetrics(namespace, subsystem, application string) Option {
 	return func(next http.RoundTripper) http.RoundTripper {
 		return &instrumentedRoundTripper{
