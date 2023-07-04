@@ -2,8 +2,8 @@ package httpclient
 
 import (
 	"fmt"
+	"github.com/clambin/go-common/httpclient/internal"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/sync/semaphore"
 	"net/http"
 	"sync"
 )
@@ -14,7 +14,7 @@ var _ prometheus.Collector = &limiter{}
 type limiter struct {
 	next        http.RoundTripper
 	metrics     *limiterMetrics
-	parallel    *semaphore.Weighted
+	parallel    *internal.Semaphore
 	lock        sync.RWMutex
 	inFlight    int
 	maxInFlight int
@@ -41,17 +41,16 @@ func WithInstrumentedLimiter(maxParallel int64, namespace, subsystem, applicatio
 		return &limiter{
 			next:     next,
 			metrics:  m,
-			parallel: semaphore.NewWeighted(maxParallel),
+			parallel: internal.NewSema(int(maxParallel)),
 		}
 	}
 }
 
 func (l *limiter) RoundTrip(request *http.Request) (*http.Response, error) {
-	ctx := request.Context()
-	if err := l.parallel.Acquire(ctx, 1); err != nil {
+	if err := l.parallel.Acquire(request.Context()); err != nil {
 		return nil, fmt.Errorf("acquire semaphore: %w", err)
 	}
-	defer l.parallel.Release(1)
+	defer l.parallel.Release()
 
 	l.inc()
 	defer l.dec()

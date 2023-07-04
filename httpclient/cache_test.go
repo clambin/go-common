@@ -7,8 +7,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"io"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestWithCache(t *testing.T) {
@@ -55,4 +57,26 @@ foo_bar_api_cache_hit_total{application="test",method="GET",path="/"} 1
 # TYPE foo_bar_api_cache_total counter
 foo_bar_api_cache_total{application="test",method="GET",path="/"} 2
 `)))
+}
+
+func BenchmarkWithCache(b *testing.B) {
+	var body bytes.Buffer
+	for i := 0; i < 10000; i++ {
+		body.WriteString("hello\n")
+	}
+	c := http.Client{
+		Transport: httpclient.NewRoundTripper(
+			httpclient.WithCache(httpclient.DefaultCacheTable, time.Minute, 0),
+			httpclient.WithRoundTripper(httpclient.RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(&body)}, nil
+			})),
+		),
+	}
+
+	for i := 0; i < b.N; i++ {
+		_, err := c.Get("/")
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }
