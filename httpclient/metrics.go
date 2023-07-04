@@ -2,7 +2,48 @@ package httpclient
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"net/http"
 )
+
+func WithMetrics(namespace, subsystem, application string) Option {
+	return func(next http.RoundTripper) http.RoundTripper {
+		return &instrumentedRoundTripper{
+			metrics: newMetrics(namespace, subsystem, application),
+			next:    next,
+		}
+	}
+}
+
+var _ http.RoundTripper = &instrumentedRoundTripper{}
+var _ prometheus.Collector = &instrumentedRoundTripper{}
+
+type instrumentedRoundTripper struct {
+	metrics roundTripperMetrics
+	next    http.RoundTripper
+}
+
+func (m *instrumentedRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	path := request.URL.Path
+	timer := m.metrics.makeLatencyTimer(path, request.Method)
+
+	response, err := m.next.RoundTrip(request)
+
+	if timer != nil {
+		timer.ObserveDuration()
+	}
+	m.metrics.reportErrors(err, path, request.Method)
+	return response, err
+}
+
+func (m *instrumentedRoundTripper) Describe(descs chan<- *prometheus.Desc) {
+	m.metrics.latency.Describe(descs)
+	m.metrics.errors.Describe(descs)
+}
+
+func (m *instrumentedRoundTripper) Collect(metrics chan<- prometheus.Metric) {
+	m.metrics.latency.Collect(metrics)
+	m.metrics.errors.Collect(metrics)
+}
 
 // roundTripperMetrics contains Prometheus metrics to capture during API calls. Each metric is expected to have two labels:
 // the first will contain the application issuing the request. The second will contain the Path of the request.
@@ -13,8 +54,8 @@ type roundTripperMetrics struct {
 	hits    *prometheus.CounterVec // measures the number of times the cache was used
 }
 
-func newMetrics(namespace, subsystem, application string) *roundTripperMetrics {
-	return &roundTripperMetrics{
+func newMetrics(namespace, subsystem, application string) roundTripperMetrics {
+	return roundTripperMetrics{
 		latency: prometheus.NewSummaryVec(prometheus.SummaryOpts{
 			Name:        prometheus.BuildFQName(namespace, subsystem, "api_latency"),
 			Help:        "latency of Reporter API calls",
@@ -25,62 +66,17 @@ func newMetrics(namespace, subsystem, application string) *roundTripperMetrics {
 			Help:        "Number of failed Reporter API calls",
 			ConstLabels: map[string]string{"application": application},
 		}, []string{"path", "method"}),
-		cache: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        prometheus.BuildFQName(namespace, subsystem, "api_cache_total"),
-			Help:        "Number of times the cache was consulted",
-			ConstLabels: map[string]string{"application": application},
-		}, []string{"path", "method"}),
-		hits: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        prometheus.BuildFQName(namespace, subsystem, "api_cache_hit_total"),
-			Help:        "Number of times the cache was used",
-			ConstLabels: map[string]string{"application": application},
-		}, []string{"path", "method"}),
 	}
 }
 
-var _ prometheus.Collector = &roundTripperMetrics{}
-
-// Describe implements the prometheus.Collector interface so clients can register roundTripperMetrics as a whole
-func (pm *roundTripperMetrics) Describe(ch chan<- *prometheus.Desc) {
-	pm.latency.Describe(ch)
-	pm.errors.Describe(ch)
-	pm.cache.Describe(ch)
-	pm.hits.Describe(ch)
-}
-
-// Collect implements the prometheus.Collector interface so clients can register roundTripperMetrics as a whole
-func (pm *roundTripperMetrics) Collect(ch chan<- prometheus.Metric) {
-	pm.latency.Collect(ch)
-	pm.errors.Collect(ch)
-	pm.cache.Collect(ch)
-	pm.hits.Collect(ch)
+func (pm *roundTripperMetrics) makeLatencyTimer(labelValues ...string) (timer *prometheus.Timer) {
+	return prometheus.NewTimer(pm.latency.WithLabelValues(labelValues...))
 }
 
 func (pm *roundTripperMetrics) reportErrors(err error, labelValues ...string) {
-	if pm == nil {
-		return
-	}
-
 	var value float64
 	if err != nil {
 		value = 1.0
 	}
 	pm.errors.WithLabelValues(labelValues...).Add(value)
-}
-
-func (pm *roundTripperMetrics) makeLatencyTimer(labelValues ...string) (timer *prometheus.Timer) {
-	if pm != nil {
-		timer = prometheus.NewTimer(pm.latency.WithLabelValues(labelValues...))
-	}
-	return
-}
-
-func (pm *roundTripperMetrics) reportCache(hit bool, labelValues ...string) {
-	if pm == nil {
-		return
-	}
-	pm.cache.WithLabelValues(labelValues...).Inc()
-	if hit {
-		pm.hits.WithLabelValues(labelValues...).Inc()
-	}
 }

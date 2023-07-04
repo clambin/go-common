@@ -5,9 +5,8 @@ go 1.18
 require (
 	github.com/clambin/go-common/cache v0.2.2
 	github.com/prometheus/client_golang v1.16.0
-	github.com/prometheus/client_model v0.4.0
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/sync v0.3.0
+	golang.org/x/sync v0.2.0
 )
 
 require (
@@ -18,6 +17,7 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect

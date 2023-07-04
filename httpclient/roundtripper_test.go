@@ -1,168 +1,115 @@
 package httpclient_test
 
 import (
-	"context"
+	"bytes"
+	"errors"
 	"github.com/clambin/go-common/httpclient"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/semaphore"
 	"io"
 	"net/http"
-	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
 
-func TestRoundTripper(t *testing.T) {
-	r := httpclient.NewRoundTripper()
-	c := &http.Client{Transport: r}
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("Hello"))
-	}))
-	defer s.Close()
+func TestWithRoundTripper(t *testing.T) {
+	s := stubbedServer{}
 
-	req, _ := http.NewRequest(http.MethodGet, s.URL+"/", nil)
-	resp, err := c.Do(req)
-	require.NoError(t, err)
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Equal(t, "Hello", string(body))
-	_ = resp.Body.Close()
+	c := http.Client{Transport: httpclient.NewRoundTripper(httpclient.WithRoundTripper(&s))}
+	_, err := c.Get("/")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, s.called)
+
+	c = http.Client{Transport: httpclient.NewRoundTripper(httpclient.WithRoundTripper(nil))}
+	assert.Panics(t, func() {
+		_, _ = c.Get("/")
+	})
 }
 
-func TestRoundTripper_WithCache(t *testing.T) {
-	r := httpclient.NewRoundTripper(httpclient.WithCache(httpclient.DefaultCacheTable, time.Minute, 5*time.Minute))
-	c := &http.Client{Transport: r}
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("Hello"))
-	}))
+func TestRoundTripperFunc(t *testing.T) {
+	f := func(_ *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusNoContent}, nil
+	}
+	tp := httpclient.NewRoundTripper(httpclient.WithRoundTripper(httpclient.RoundTripperFunc(f)))
+	c := http.Client{Transport: tp}
 
-	var date string
-	for i := 0; i < 10; i++ {
-		req, _ := http.NewRequest(http.MethodGet, s.URL+"/foo", nil)
-		resp, err := c.Do(req)
-		require.NoError(t, err, i)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	resp, err := c.Get("/")
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+}
 
-		if i == 0 {
-			date = resp.Header["Date"][0]
-		} else {
-			assert.Equal(t, date, resp.Header["Date"][0])
+func TestCustom_RoundTripper(t *testing.T) {
+	f := func(req *http.Request) (*http.Response, error) {
+		statusCode := http.StatusNoContent
+		if h := req.Header.Get("X-Chain"); h != "foo" {
+			statusCode = http.StatusBadRequest
 		}
-
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Equal(t, "Hello", string(body))
-		_ = resp.Body.Close()
+		return &http.Response{StatusCode: statusCode}, nil
 	}
-
-	s.Close()
-	req, _ := http.NewRequest(http.MethodGet, s.URL+"/bar", nil)
-	_, err := c.Do(req)
-	assert.Error(t, err)
-}
-
-func TestRoundTripper_WithCache_Stress(t *testing.T) {
-	var bigResponse string
-	for i := 0; i < 10000; i++ {
-		bigResponse += "A"
-	}
-
-	r := httpclient.NewRoundTripper(httpclient.WithCache(httpclient.DefaultCacheTable, time.Minute, 5*time.Minute))
-	c := &http.Client{Transport: r}
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(bigResponse))
-	}))
-
-	const maxParallel = 100
-	const Iterations = 10000
-
-	p := semaphore.NewWeighted(maxParallel)
-	ctx := context.Background()
-	for i := 0; i < Iterations; i++ {
-		require.NoError(t, p.Acquire(ctx, 1))
-		go func() {
-			defer p.Release(1)
-			req, _ := http.NewRequest(http.MethodGet, s.URL+"/foo", nil)
-			resp, err := c.Do(req)
-			require.NoError(t, err)
-
-			body, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-			assert.Equal(t, bigResponse, string(body))
-
-			_ = resp.Body.Close()
-		}()
-	}
-	require.NoError(t, p.Acquire(ctx, maxParallel))
-}
-
-func TestRoundTripper_Collect(t *testing.T) {
 	r := httpclient.NewRoundTripper(
-		httpclient.WithMetrics("", "", "foo"),
-		httpclient.WithRoundTripper(&stubbedRoundTripper{}),
-	)
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(r)
-
-	c := &http.Client{Transport: r}
-
-	req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080/", nil)
-	resp, err := c.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	req, _ = http.NewRequest(http.MethodGet, "http://localhost:8080/invalid", nil)
-	resp, err = c.Do(req)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-
-	metrics, err := registry.Gather()
-	require.NoError(t, err)
-	for _, metric := range metrics {
-		switch metric.GetName() {
-		case "api_errors_total":
-			assert.Len(t, metric.GetMetric(), 2)
-		case "api_latency":
-			assert.Len(t, metric.GetMetric(), 2)
-		case "api_cache_total":
-			assert.Len(t, metric.GetMetric(), 2)
-		case "api_cache_hit_total":
-			assert.Len(t, metric.GetMetric(), 1)
-		default:
-			t.Log(metric.GetName())
-		}
-	}
-}
-
-func BenchmarkRoundTripper_RoundTrip(b *testing.B) {
-	r := httpclient.NewRoundTripper(
-		httpclient.WithCache(httpclient.DefaultCacheTable, time.Minute, 0),
-		httpclient.WithMetrics("", "", "foo"),
-		httpclient.WithRoundTripper(&stubbedRoundTripper{}),
+		WithHeader(),
+		httpclient.WithRoundTripper(httpclient.RoundTripperFunc(f)),
 	)
 
-	c := &http.Client{Transport: r}
-	req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080/", nil)
+	req, _ := http.NewRequest(http.MethodGet, "/", nil)
+	resp, err := r.RoundTrip(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+}
 
-	for i := 0; i < b.N; i++ {
-		resp, err := c.Do(req)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			b.Fatal(resp.Status)
-		}
+func WithHeader() httpclient.Option {
+	return func(current http.RoundTripper) http.RoundTripper {
+		return &Header{next: current}
 	}
 }
 
-type stubbedRoundTripper struct{}
+type Header struct{ next http.RoundTripper }
 
-func (r *stubbedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	statusCode := http.StatusNotFound
-	if req.URL.Path == "/" {
-		statusCode = http.StatusOK
+func (f *Header) RoundTrip(r *http.Request) (*http.Response, error) {
+	r.Header.Add("X-Chain", "foo")
+	return f.next.RoundTrip(r)
+}
+
+var _ http.RoundTripper = &stubbedServer{}
+
+type stubbedServer struct {
+	delay       time.Duration
+	fail        bool
+	called      int
+	inFlight    int
+	maxInFlight int
+	lock        sync.Mutex
+}
+
+func (s *stubbedServer) RoundTrip(_ *http.Request) (*http.Response, error) {
+	s.inc()
+	defer s.dec()
+
+	time.Sleep(s.delay)
+
+	if s.fail {
+		return nil, errors.New("failed")
 	}
-	return &http.Response{StatusCode: statusCode}, nil
+
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`hello`)),
+	}, nil
+}
+
+func (s *stubbedServer) inc() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.called++
+	s.inFlight++
+	if s.inFlight > s.maxInFlight {
+		s.maxInFlight = s.inFlight
+	}
+}
+
+func (s *stubbedServer) dec() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.inFlight--
 }

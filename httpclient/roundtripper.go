@@ -3,85 +3,91 @@ package httpclient
 import (
 	"github.com/prometheus/client_golang/prometheus"
 	"net/http"
-	"time"
 )
-
-// RoundTripper performs an HTTP request based on the specified list of RoundTripperOption items.
-// It implements the http.RoundTripper interface.
-type RoundTripper struct {
-	*roundTripperMetrics
-	roundTripper http.RoundTripper
-	cache        *responseCache
-}
 
 var _ http.RoundTripper = &RoundTripper{}
 var _ prometheus.Collector = &RoundTripper{}
 
-// NewRoundTripper creates a new RoundTripper
-func NewRoundTripper(options ...RoundTripperOption) *RoundTripper {
-	r := &RoundTripper{roundTripper: http.DefaultTransport}
-	for _, option := range options {
-		option(r)
-	}
-	return r
+// RoundTripper implements http.RoundTripper. It implements a net/http-compatible transport layer so it can be used
+// by http.Client's Transport.
+type RoundTripper struct {
+	http.RoundTripper
+	collectors []prometheus.Collector
+
+	http.HandlerFunc
 }
 
-// RoundTrip performs the HTTP request
-func (r *RoundTripper) RoundTrip(request *http.Request) (response *http.Response, err error) {
-	var cacheKey string
-	if r.cache != nil {
-		var found bool
-		cacheKey, response, found, err = r.cache.get(request)
-		r.reportCache(found, request.URL.Path, request.Method)
-		if found || err != nil {
-			return response, err
+// Option is a function that can be passed to NetRoundTripper to specify the behaviour of the RoundTripper.
+// See WithMetrics, WithCache for examples.
+type Option func(current http.RoundTripper) http.RoundTripper
+
+// The RoundTripperFunc type is an adapter to allow the use of
+// ordinary functions as HTTP roundTrippers. If f is a function
+// with the appropriate signature, RoundTripperFunc(f) is a
+// roundTripper that calls f.
+type RoundTripperFunc func(*http.Request) (*http.Response, error)
+
+// RoundTrip calls f(req)
+func (f RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+// NewRoundTripper returns a RoundTripper that implements the behaviour as specified by the different Option parameters.
+// NewRoundTripper will construct a cascading roundTripper in the order of the provided options. E.g.
+//
+//	r := NewRoundTripper(WithMetrics(...), WithCache(...))
+//
+// returns a roundTripper that measures the client metrics, and then attempts to get the response from cache.
+// Metrics are therefor captured for cached and non-cached responses. On the other hand:
+//
+//	r := NewRoundTripper(WithCache(...), WithMetrics(...))
+//
+// first attempts to get the response from cache, and failing that, performs real call, recording its http
+// metrics.  Metrics will therefore only be captured for real http calls.
+//
+// NewRoundTripper makes no attempt to sanitize the order of the provided options. E.g. WithRoundTripper does not
+// cascade to a next roundTripper; it directly performs the http call using the provided transport.
+// Therefore, if we create the following RoundTripper:
+//
+//	r := NewRoundTripper(WithRoundTripper(...), WithMetrics(...))
+//
+// the WithMetrics option will not be used at all.
+//
+// If no options are provided, or the final option isn't WithRoundTripper, the http call is done using
+// http.DefaultTransport.
+func NewRoundTripper(options ...Option) *RoundTripper {
+	r := http.DefaultTransport
+	var c []prometheus.Collector
+
+	for i := len(options) - 1; i >= 0; i-- {
+		r = options[i](r)
+		if m, ok := r.(prometheus.Collector); ok {
+			c = append(c, m)
 		}
 	}
-
-	path := request.URL.Path
-	timer := r.makeLatencyTimer(path, request.Method)
-
-	response, err = r.roundTripper.RoundTrip(request)
-
-	if timer != nil {
-		timer.ObserveDuration()
-	}
-	r.reportErrors(err, path, request.Method)
-
-	if err == nil && r.cache != nil {
-		err = r.cache.put(cacheKey, request, response)
-	}
-
-	return response, err
+	return &RoundTripper{RoundTripper: r, collectors: c}
 }
 
-// RoundTripperOption specified configuration options for Client
-type RoundTripperOption func(*RoundTripper)
-
-// WithMetrics causes RoundTripper to collect Prometheus metrics for each call made. RoundTripper implements
-// the prometheus.Collector interface, so the roundtripper can be registered with a prometheus Registry to collect current metric.
-//
-// Namespace and Subsystem will be prepended to the metric names, e.g. api_errors_total will be called foo_bar_api_errors_total
-// if namespace and subsystem are set to foo and bar respectively. Application will be set in the metric's application label.
-func WithMetrics(namespace, subsystem, application string) RoundTripperOption {
-	return func(r *RoundTripper) {
-		r.roundTripperMetrics = newMetrics(namespace, subsystem, application)
+// Describe implements the prometheus.Collector interface. A RoundTripper can therefore be directly registered and collected
+// from a Prometheus registry.
+func (r RoundTripper) Describe(descs chan<- *prometheus.Desc) {
+	for _, c := range r.collectors {
+		c.Describe(descs)
 	}
 }
 
-// WithCache causes RoundTripper to cache the HTTP responses. Table dictates the caching behaviour per target path.
-// If Table is empty, all responses will be cached for DefaultExpiry amount of time. Expired entries will periodically
-// be removed from the cache as per CleanupInterval. If CleanupInterval is zero, expired entries will never be removed.
-func WithCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) RoundTripperOption {
-	return func(r *RoundTripper) {
-		r.cache = newCache(table, defaultExpiry, cleanupInterval)
+// Collect implements the prometheus.Collector interface. A RoundTripper can therefore be directly registered and collected
+// from a Prometheus registry.
+func (r RoundTripper) Collect(metrics chan<- prometheus.Metric) {
+	for _, c := range r.collectors {
+		c.Collect(metrics)
 	}
 }
 
-// WithRoundTripper assigns a final RoundTripper of the chain. Use this to control the final HTTP exchange's behaviour
-// (e.g. using a proxy to make the HTTP call).
-func WithRoundTripper(roundTripper http.RoundTripper) RoundTripperOption {
-	return func(r *RoundTripper) {
-		r.roundTripper = roundTripper
+// WithRoundTripper specifies the http.RoundTripper to make the final http client call. If no WithRoundTripper is
+// provided, RoundTripper defaults to http.DefaultTransport.  Providing a nil roundTripper causes RoundTripper to panic.
+func WithRoundTripper(roundTripper http.RoundTripper) Option {
+	return func(_ http.RoundTripper) http.RoundTripper {
+		return roundTripper
 	}
 }

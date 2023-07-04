@@ -1,6 +1,7 @@
 package httpclient_test
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/clambin/go-common/httpclient"
 	"github.com/prometheus/client_golang/prometheus"
@@ -9,7 +10,7 @@ import (
 	"time"
 )
 
-func Example_withMetrics() {
+func ExampleWithMetrics() {
 	transport := httpclient.NewRoundTripper(httpclient.WithMetrics("", "", "example"))
 	client := &http.Client{
 		Transport: transport,
@@ -17,15 +18,14 @@ func Example_withMetrics() {
 
 	prometheus.DefaultRegisterer.MustRegister(transport)
 
-	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
-	if resp, err := client.Do(req); err == nil {
+	if resp, err := client.Get("https://example.com"); err == nil {
 		body, _ := io.ReadAll(resp.Body)
 		fmt.Print(string(body))
 		_ = resp.Body.Close()
 	}
 }
 
-func Example_withCache() {
+func ExampleWithCache() {
 	cacheTable := []*httpclient.CacheTableEntry{
 		{
 			Path:     "/foo/.+",
@@ -37,8 +37,41 @@ func Example_withCache() {
 		Transport: httpclient.NewRoundTripper(httpclient.WithCache(cacheTable, time.Second, time.Minute)),
 	}
 
-	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
-	if resp, err := c.Do(req); err == nil {
+	if resp, err := c.Get("https://example.com"); err == nil {
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Print(string(body))
+		_ = resp.Body.Close()
+	}
+}
+
+func ExampleRoundTripperFunc() {
+	stub := func(_ *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewBufferString(`hello `)),
+		}, nil
+	}
+	tp := httpclient.NewRoundTripper(httpclient.WithRoundTripper(httpclient.RoundTripperFunc(stub)))
+
+	c := http.Client{Transport: tp}
+
+	if resp, err := c.Get("/"); err == nil {
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Print(string(body))
+		_ = resp.Body.Close()
+	}
+}
+
+func Example_chained() {
+	tp := httpclient.NewRoundTripper(
+		httpclient.WithCache(httpclient.DefaultCacheTable, time.Second, time.Minute),
+		httpclient.WithMetrics("foo", "bar", "example"),
+	)
+	prometheus.MustRegister(tp)
+
+	c := http.Client{Transport: tp}
+
+	if resp, err := c.Get("https://example.com"); err == nil {
 		body, _ := io.ReadAll(resp.Body)
 		fmt.Print(string(body))
 		_ = resp.Body.Close()

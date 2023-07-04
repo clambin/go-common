@@ -1,77 +1,120 @@
 package httpclient
 
 import (
-	"bufio"
-	"bytes"
-	"github.com/clambin/go-common/cache"
+	"github.com/prometheus/client_golang/prometheus"
 	"net/http"
-	"net/http/httputil"
 	"time"
 )
 
-type responseCache struct {
-	table CacheTable
-	cache *cache.Cache[string, []byte]
+// WithCache creates a RoundTripper that caches the HTTP responses. table determines the caching behaviour per target path.
+// If table is empty, all responses are cached for defaultExpiry amount of time.
+// If table is not empty, only requests that match an entry in the table are cached, for the amount of time specified in the table's entry.
+//
+// Expired entries are periodically removed from the cache as per CleanupInterval. If CleanupInterval is zero,
+// expired entries will never be removed.
+func WithCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) Option {
+	return WithInstrumentedCache(table, defaultExpiry, cleanupInterval, "", "", "")
 }
 
-func newCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) *responseCache {
-	c := &responseCache{
-		table: table,
-		cache: cache.New[string, []byte](defaultExpiry, cleanupInterval),
+// WithInstrumentedCache causes RoundTripper to cache the HTTP responses, as WithCache.  Additionally, it measures how often
+// the cache was consulted and hit as Prometheus metrics.
+//
+// namespace and subsystem are prepended to the metric names, e.g. api_errors_total will be called foo_bar_api_errors_total
+// if namespace and subsystem are set to foo and bar respectively. Application will be set in the metrics' application label.
+//
+// If namespace, subsystem and application are blank, the call is equivalent to calling WithCache, i.e. no metrics are created.
+func WithInstrumentedCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration, namespace, subsystem, application string) Option {
+	return func(next http.RoundTripper) http.RoundTripper {
+		var metrics *cacheMetrics
+		if namespace != "" || subsystem != "" || application != "" {
+			metrics = newCacheMetrics(namespace, subsystem, application)
+		}
+		c := cachingRoundTripper{
+			next:    next,
+			cache:   newResponseCache(table, defaultExpiry, cleanupInterval),
+			metrics: metrics,
+		}
+		return &c
 	}
-	c.table.mustCompile()
-	return c
 }
 
-/*
-var readerPool = sync.Pool{
-	New: func() any { return bufio.NewReader(nil) },
-}
-*/
+var _ http.RoundTripper = &cachingRoundTripper{}
+var _ prometheus.Collector = &cachingRoundTripper{}
 
-func (c *responseCache) get(req *http.Request) (string, *http.Response, bool, error) {
-	key := getCacheKey(req)
-	body, found := c.cache.Get(key)
-	if !found {
-		return key, nil, false, nil
-	}
-
-	// TODO: this creates a race condition between setting up the bufio.Reader from the pool and a client reading the response body?
-	// avoid creating bufio.Reader for each cached request
-	// doing same for bytes.Buffer gives negligible improvements
-	//r := readerPool.Get().(*bufio.Reader)
-	//defer readerPool.Put(r)
-	//r.Reset(bytes.NewBuffer(body))
-
-	r := bufio.NewReader(bytes.NewReader(body))
-	resp, err := http.ReadResponse(r, req)
-	if err == nil {
-		resp.Request = req
-	}
-	return key, resp, found, err
+type cachingRoundTripper struct {
+	next    http.RoundTripper
+	cache   *responseCache
+	metrics *cacheMetrics
 }
 
-func (c *responseCache) put(key string, req *http.Request, resp *http.Response) error {
-	shouldCache, expiry := c.shouldCache(req)
-	if !shouldCache {
-		return nil
+func (c *cachingRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	cacheKey, response, found, err := c.cache.get(request)
+	c.metrics.reportCache(found, request.URL.Path, request.Method)
+	if found || err != nil {
+		return response, err
 	}
 
-	buf, err := httputil.DumpResponse(resp, true)
-	if err == nil {
-		c.cache.AddWithExpiry(key, buf, expiry)
+	if response, err = c.next.RoundTrip(request); err == nil {
+		err = c.cache.put(cacheKey, request, response)
 	}
-	return err
+
+	return response, err
 }
 
-func (c *responseCache) shouldCache(r *http.Request) (cache bool, expiry time.Duration) {
-	cache, expiry = c.table.shouldCache(r)
-	if cache && expiry == 0 {
-		expiry = c.cache.GetDefaultExpiration()
+func (c *cachingRoundTripper) Describe(descs chan<- *prometheus.Desc) {
+	if c.metrics != nil {
+		c.metrics.Describe(descs)
 	}
-	return
 }
 
-func getCacheKey(r *http.Request) string {
-	return r.Method + " | " + r.URL.Path
+func (c *cachingRoundTripper) Collect(metrics chan<- prometheus.Metric) {
+	if c.metrics != nil {
+		c.metrics.Collect(metrics)
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+type cacheMetrics struct {
+	cache *prometheus.CounterVec // measures number of times the cache has been consulted
+	hits  *prometheus.CounterVec // measures the number of times the cache was used
+}
+
+func newCacheMetrics(namespace, subsystem, application string) *cacheMetrics {
+	return &cacheMetrics{
+		cache: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        prometheus.BuildFQName(namespace, subsystem, "api_cache_total"),
+			Help:        "Number of times the cache was consulted",
+			ConstLabels: map[string]string{"application": application},
+		}, []string{"path", "method"}),
+		hits: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        prometheus.BuildFQName(namespace, subsystem, "api_cache_hit_total"),
+			Help:        "Number of times the cache was used",
+			ConstLabels: map[string]string{"application": application},
+		}, []string{"path", "method"}),
+	}
+}
+
+var _ prometheus.Collector = &cacheMetrics{}
+
+// Describe implements the prometheus.Collector interface so clients can register roundTripperMetrics as a whole
+func (cm *cacheMetrics) Describe(ch chan<- *prometheus.Desc) {
+	cm.cache.Describe(ch)
+	cm.hits.Describe(ch)
+}
+
+// Collect implements the prometheus.Collector interface so clients can register roundTripperMetrics as a whole
+func (cm *cacheMetrics) Collect(ch chan<- prometheus.Metric) {
+	cm.cache.Collect(ch)
+	cm.hits.Collect(ch)
+}
+
+func (cm *cacheMetrics) reportCache(hit bool, labelValues ...string) {
+	if cm == nil {
+		return
+	}
+	cm.cache.WithLabelValues(labelValues...).Inc()
+	if hit {
+		cm.hits.WithLabelValues(labelValues...).Inc()
+	}
 }
