@@ -59,8 +59,8 @@ func TestCustom_RoundTripper(t *testing.T) {
 }
 
 func WithHeader() httpclient.Option {
-	return func(current http.RoundTripper) http.RoundTripper {
-		return &Header{next: current}
+	return func(next http.RoundTripper) http.RoundTripper {
+		return &Header{next: next}
 	}
 }
 
