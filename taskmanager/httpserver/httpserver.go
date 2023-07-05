@@ -42,7 +42,7 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 	case <-ctx.Done():
 	}
 
-	ctx2, cancel := context.WithTimeout(ctx, s.ShutdownTimeout)
+	ctx2, cancel := context.WithTimeout(context.Background(), s.ShutdownTimeout)
 	defer cancel()
 	if err := s.server.Shutdown(ctx2); err != nil {
 		<-ch
