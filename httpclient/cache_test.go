@@ -64,17 +64,16 @@ func BenchmarkWithCache(b *testing.B) {
 	for i := 0; i < 10000; i++ {
 		body.WriteString("hello\n")
 	}
-	c := http.Client{
-		Transport: httpclient.NewRoundTripper(
-			httpclient.WithCache(httpclient.DefaultCacheTable, time.Minute, 0),
-			httpclient.WithRoundTripper(httpclient.RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
-				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(&body)}, nil
-			})),
-		),
-	}
+	rt := httpclient.NewRoundTripper(
+		httpclient.WithCache(httpclient.DefaultCacheTable, time.Minute, 0),
+		httpclient.WithRoundTripper(httpclient.RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(&body)}, nil
+		})),
+	)
 
+	req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080", nil)
 	for i := 0; i < b.N; i++ {
-		_, err := c.Get("/")
+		_, err := rt.RoundTrip(req)
 		if err != nil {
 			b.Fatal(err)
 		}

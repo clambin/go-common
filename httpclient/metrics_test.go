@@ -43,17 +43,16 @@ foo_bar_api_errors_total{application="test",method="GET",path="/"} 1
 }
 
 func BenchmarkWithMetrics(b *testing.B) {
-	c := http.Client{
-		Transport: httpclient.NewRoundTripper(
-			httpclient.WithMetrics("foo", "bar", "test"),
-			httpclient.WithRoundTripper(httpclient.RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
-				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewBufferString("hello"))}, nil
-			})),
-		),
-	}
+	rt := httpclient.NewRoundTripper(
+		httpclient.WithMetrics("foo", "bar", "test"),
+		httpclient.WithRoundTripper(httpclient.RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewBufferString("hello"))}, nil
+		})),
+	)
 
+	req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080", nil)
 	for i := 0; i < b.N; i++ {
-		_, err := c.Get("/")
+		_, err := rt.RoundTrip(req)
 		if err != nil {
 			b.Fatal(err)
 		}

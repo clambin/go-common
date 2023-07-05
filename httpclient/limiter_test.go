@@ -81,21 +81,19 @@ func BenchmarkWithLimiter(b *testing.B) {
 	for i := 0; i < 10000; i++ {
 		body.WriteString("hello\n")
 	}
-	c := http.Client{
-		Transport: httpclient.NewRoundTripper(
-			httpclient.WithLimiter(5),
-			httpclient.WithRoundTripper(httpclient.RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
-				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(&body)}, nil
-			})),
-		),
-	}
-
+	rt := httpclient.NewRoundTripper(
+		httpclient.WithLimiter(50),
+		httpclient.WithRoundTripper(httpclient.RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(&body)}, nil
+		})),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080", nil)
 	var wg sync.WaitGroup
 	for i := 0; i < b.N; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = c.Get("/")
+			_, _ = rt.RoundTrip(req)
 		}()
 	}
 	wg.Wait()
