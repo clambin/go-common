@@ -34,7 +34,7 @@ func (l LogEntry) Write(status, _ int, _ http.Header, elapsed time.Duration, _ i
 			slog.String("method", l.request.Method),
 			slog.Int("status", status),
 			//slog.Int("responseSize", bytes),
-			slog.Duration("elapsed", elapsed),
+			slog.Float64("elapsed", float64(elapsed.Microseconds())/1000),
 		),
 	)
 }
