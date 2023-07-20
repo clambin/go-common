@@ -1,44 +1,45 @@
 package middleware
 
 import (
-	"github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/exp/slog"
 	"net/http"
 	"time"
 )
 
-func Logger(l *slog.Logger) func(http.Handler) http.Handler {
-	return middleware.RequestLogger(logger{logger: l})
+// Logger logs incoming HTTP requests.  If requestWriter is nil, the logger defaults to DefaultRequestLogger.
+func Logger(requestWriter RequestLogger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if requestWriter == nil {
+			requestWriter = defaultRequestLogger{}
+		}
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			lrw := &loggingResponseWriter{ResponseWriter: w}
+
+			next.ServeHTTP(lrw, r)
+
+			requestWriter.Log(r, lrw.statusCode, time.Since(start))
+		}
+
+		return http.HandlerFunc(fn)
+	}
 }
 
-type logger struct {
-	logger *slog.Logger
+// A RequestLogger takes an incoming request, the resulting HTTP status code and the latency and logs it to a logger.
+type RequestLogger interface {
+	Log(r *http.Request, code int, latency time.Duration)
 }
 
-func (l logger) NewLogEntry(r *http.Request) middleware.LogEntry {
-	return &LogEntry{logger: l.logger, request: r}
-}
+// DefaultRequestLogger logs the incoming request, the resulting HTTP status code and the latency to slog at Info log level.
+var DefaultRequestLogger RequestLogger = defaultRequestLogger{}
 
-var _ middleware.LogEntry = &LogEntry{}
+type defaultRequestLogger struct{}
 
-type LogEntry struct {
-	logger  *slog.Logger
-	request *http.Request
-}
-
-func (l LogEntry) Write(status, _ int, _ http.Header, elapsed time.Duration, _ interface{}) {
-	l.logger.Info("request processed",
-		slog.Group("request",
-			slog.String("from", l.request.RemoteAddr),
-			slog.String("path", l.request.URL.Path),
-			slog.String("method", l.request.Method),
-			slog.Int("status", status),
-			//slog.Int("responseSize", bytes),
-			slog.Float64("elapsed", float64(elapsed.Microseconds())/1000),
-		),
+func (d defaultRequestLogger) Log(r *http.Request, statusCode int, latency time.Duration) {
+	slog.Info("request",
+		slog.String("path", r.URL.Path),
+		slog.String("method", r.Method),
+		slog.Int("code", statusCode),
+		slog.Duration("latency", latency),
 	)
-}
-
-func (l LogEntry) Panic(v interface{}, _ []byte) {
-	middleware.PrintPrettyStack(v)
 }
