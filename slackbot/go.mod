@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/slack-go/slack v0.12.2
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
+	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 )
 
 require (
