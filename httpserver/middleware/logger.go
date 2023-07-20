@@ -10,7 +10,7 @@ import (
 func Logger(requestLogger RequestLogger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if requestLogger == nil {
-			requestLogger = &defaultRequestLogger{Logger: slog.Default()}
+			requestLogger = &DefaultRequestLogger{Logger: slog.Default()}
 		}
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -31,13 +31,11 @@ type RequestLogger interface {
 }
 
 // DefaultRequestLogger logs the incoming request, the resulting HTTP status code and the latency to slog at Info log level.
-var DefaultRequestLogger RequestLogger = &defaultRequestLogger{}
-
-type defaultRequestLogger struct {
+type DefaultRequestLogger struct {
 	Logger *slog.Logger
 }
 
-func (d *defaultRequestLogger) Log(r *http.Request, statusCode int, latency time.Duration) {
+func (d *DefaultRequestLogger) Log(r *http.Request, statusCode int, latency time.Duration) {
 	if d.Logger == nil {
 		d.Logger = slog.Default()
 	}
