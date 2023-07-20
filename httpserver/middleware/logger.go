@@ -7,10 +7,10 @@ import (
 )
 
 // Logger logs incoming HTTP requests.  If requestWriter is nil, the logger defaults to DefaultRequestLogger.
-func Logger(requestWriter RequestLogger) func(http.Handler) http.Handler {
+func Logger(requestLogger RequestLogger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		if requestWriter == nil {
-			requestWriter = defaultRequestLogger{}
+		if requestLogger == nil {
+			requestLogger = &defaultRequestLogger{Logger: slog.Default()}
 		}
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -18,7 +18,7 @@ func Logger(requestWriter RequestLogger) func(http.Handler) http.Handler {
 
 			next.ServeHTTP(lrw, r)
 
-			requestWriter.Log(r, lrw.statusCode, time.Since(start))
+			requestLogger.Log(r, lrw.statusCode, time.Since(start))
 		}
 
 		return http.HandlerFunc(fn)
@@ -31,11 +31,16 @@ type RequestLogger interface {
 }
 
 // DefaultRequestLogger logs the incoming request, the resulting HTTP status code and the latency to slog at Info log level.
-var DefaultRequestLogger RequestLogger = defaultRequestLogger{}
+var DefaultRequestLogger RequestLogger = &defaultRequestLogger{}
 
-type defaultRequestLogger struct{}
+type defaultRequestLogger struct {
+	Logger *slog.Logger
+}
 
-func (d defaultRequestLogger) Log(r *http.Request, statusCode int, latency time.Duration) {
+func (d *defaultRequestLogger) Log(r *http.Request, statusCode int, latency time.Duration) {
+	if d.Logger == nil {
+		d.Logger = slog.Default()
+	}
 	slog.Info("request",
 		slog.String("path", r.URL.Path),
 		slog.String("method", r.Method),
