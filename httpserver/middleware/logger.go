@@ -30,6 +30,15 @@ type RequestLogger interface {
 	Log(r *http.Request, code int, latency time.Duration)
 }
 
+// The RequestLoggerFunc type is an adapter to allow the use of an ordinary function as a RequestLogger.
+// If f is a function with the appropriate signature, then RequestLoggerFunc(f) is a RequestLogger that calls f.
+type RequestLoggerFunc func(r *http.Request, code int, latency time.Duration)
+
+// Log calls l(r, code, latency)
+func (l RequestLoggerFunc) Log(r *http.Request, code int, latency time.Duration) {
+	l(r, code, latency)
+}
+
 // DefaultRequestLogger logs the incoming request, the resulting HTTP status code and the latency to slog at Info log level.
 var DefaultRequestLogger = &defaultRequestLogger{}
 

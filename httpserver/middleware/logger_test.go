@@ -39,9 +39,17 @@ func TestLogger(t *testing.T) {
 			want:   "level=INFO msg=request path=/ method=GET code=200 latency=",
 		},
 		{
-			name:   "custom",
-			logger: requestLogger{logger: slog.Default()},
-			want:   `level=DEBUG msg=request client="" path=/ method=GET code=200 latency=`,
+			name: "custom",
+			logger: middleware.RequestLoggerFunc(func(r *http.Request, code int, latency time.Duration) {
+				l.Debug("request",
+					slog.String("client", r.RequestURI),
+					slog.String("path", r.URL.Path),
+					slog.String("method", r.Method),
+					slog.Int("code", code),
+					slog.Duration("latency", latency),
+				)
+			}),
+			want: `level=DEBUG msg=request client="" path=/ method=GET code=200 latency=`,
 		},
 	}
 
@@ -65,7 +73,7 @@ func TestLogger(t *testing.T) {
 	}
 }
 
-func TestDefaultLogger_Nil(t *testing.T) {
+func TestDefaultLogger(t *testing.T) {
 	out := bytes.NewBufferString("")
 	opt := slog.HandlerOptions{Level: slog.LevelDebug, ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
 		// Remove time from the output for predictable test output.
@@ -88,20 +96,4 @@ func TestDefaultLogger_Nil(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, out.String(), `level=INFO msg=request path=/ method=GET code=200 latency=`)
-}
-
-var _ middleware.RequestLogger = requestLogger{}
-
-type requestLogger struct {
-	logger *slog.Logger
-}
-
-func (w requestLogger) Log(r *http.Request, statusCode int, latency time.Duration) {
-	w.logger.Debug("request",
-		slog.String("client", r.RequestURI),
-		slog.String("path", r.URL.Path),
-		slog.String("method", r.Method),
-		slog.Int("code", statusCode),
-		slog.Duration("latency", latency),
-	)
 }
