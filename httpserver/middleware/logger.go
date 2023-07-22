@@ -38,16 +38,14 @@ func (l RequestLoggerFunc) Log(r *http.Request, code int, latency time.Duration)
 
 // DefaultRequestLogger logs the incoming request, the resulting HTTP status code and latency.
 //
-// The default log level is INFO. Override it be setting LogLevel.
+// The default log level is INFO. Override it by setting LogLevel.
 type DefaultRequestLogger struct {
 	LogLevel slog.Level
 }
 
 func (d DefaultRequestLogger) Log(r *http.Request, statusCode int, latency time.Duration) {
-	if slog.Default().Enabled(r.Context(), d.LogLevel) {
-		slog.LogAttrs(r.Context(), d.LogLevel, "request", []slog.Attr{
-			slog.String("path", r.URL.Path), slog.String("method", r.Method),
-			slog.Int("code", statusCode), slog.Duration("latency", latency),
-		}...)
-	}
+	slog.LogAttrs(r.Context(), d.LogLevel, "request", []slog.Attr{
+		slog.String("path", r.URL.Path), slog.String("method", r.Method),
+		slog.Int("code", statusCode), slog.Duration("latency", latency),
+	}...)
 }
