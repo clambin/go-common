@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// Logger logs incoming HTTP requests.
-func Logger(requestLogger RequestLogger) func(http.Handler) http.Handler {
+// RequestLogger logs incoming HTTP requests.
+func RequestLogger(logger *slog.Logger, logLevel slog.Level, formatter RequestLogFormatter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -15,37 +15,33 @@ func Logger(requestLogger RequestLogger) func(http.Handler) http.Handler {
 
 			next.ServeHTTP(lrw, r)
 
-			requestLogger.Log(r, lrw.statusCode, time.Since(start))
+			logger.LogAttrs(r.Context(), logLevel, "http request", formatter.FormatRequest(r, lrw.statusCode, time.Since(start))...)
 		}
 
 		return http.HandlerFunc(fn)
 	}
 }
 
-// A RequestLogger takes an incoming request, the resulting HTTP status code and the latency and logs it to a logger.
-type RequestLogger interface {
-	Log(r *http.Request, code int, latency time.Duration)
+// A RequestLogFormatter takes the HTTP request, the resulting HTTP status code and latency and formats the log entry.
+type RequestLogFormatter interface {
+	FormatRequest(*http.Request, int, time.Duration) []slog.Attr
 }
 
-// The RequestLoggerFunc type is an adapter to allow the use of an ordinary function as a RequestLogger.
-// If f is a function with the appropriate signature, then RequestLoggerFunc(f) is a RequestLogger that calls f.
-type RequestLoggerFunc func(r *http.Request, code int, latency time.Duration)
+// DefaultRequestLogFormatter is the default RequestLogFormatter. It logs the request's HTTP method and the path.
+var DefaultRequestLogFormatter RequestLogFormatter = &defaultRequestLogFormatter{}
 
-// Log calls l(r, code, latency)
-func (l RequestLoggerFunc) Log(r *http.Request, code int, latency time.Duration) {
-	l(r, code, latency)
-}
+type defaultRequestLogFormatter struct{}
 
-// DefaultRequestLogger logs the incoming request, the resulting HTTP status code and latency.
-//
-// The default log level is INFO. Override it by setting LogLevel.
-type DefaultRequestLogger struct {
-	LogLevel slog.Level
-}
-
-func (d DefaultRequestLogger) Log(r *http.Request, statusCode int, latency time.Duration) {
-	slog.LogAttrs(r.Context(), d.LogLevel, "request", []slog.Attr{
-		slog.String("path", r.URL.Path), slog.String("method", r.Method),
+func (d defaultRequestLogFormatter) FormatRequest(r *http.Request, statusCode int, latency time.Duration) []slog.Attr {
+	return []slog.Attr{slog.String("path", r.URL.Path), slog.String("method", r.Method),
 		slog.Int("code", statusCode), slog.Duration("latency", latency),
-	}...)
+	}
+}
+
+// The RequestLogFormatterFunc type is an adapter that allows an ordinary function to be used as a RequestLogFormatter.
+type RequestLogFormatterFunc func(r *http.Request, statusCode int, latency time.Duration) []slog.Attr
+
+// FormatRequest calls f(r, statusCode, latency)
+func (f RequestLogFormatterFunc) FormatRequest(r *http.Request, statusCode int, latency time.Duration) []slog.Attr {
+	return f(r, statusCode, latency)
 }
