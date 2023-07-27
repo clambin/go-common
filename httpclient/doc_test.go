@@ -11,11 +11,14 @@ import (
 )
 
 func ExampleWithMetrics() {
-	transport := httpclient.NewRoundTripper(httpclient.WithMetrics("", "", "example"))
+	transport := httpclient.NewRoundTripper(
+		httpclient.WithMetrics("", "", "example"),
+	)
 	client := &http.Client{
 		Transport: transport,
 	}
 
+	// The RoundTripper needs to be registered with a Prometheus registry so Prometheus will collect it.
 	prometheus.DefaultRegisterer.MustRegister(transport)
 
 	if resp, err := client.Get("https://example.com"); err == nil {
@@ -48,7 +51,7 @@ func ExampleRoundTripperFunc() {
 	stub := func(_ *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(bytes.NewBufferString(`hello `)),
+			Body:       io.NopCloser(bytes.NewBufferString(`hello`)),
 		}, nil
 	}
 	tp := httpclient.NewRoundTripper(httpclient.WithRoundTripper(httpclient.RoundTripperFunc(stub)))
@@ -67,6 +70,8 @@ func Example_chained() {
 		httpclient.WithCache(httpclient.DefaultCacheTable, time.Second, time.Minute),
 		httpclient.WithMetrics("foo", "bar", "example"),
 	)
+
+	// The RoundTripper needs to be registered with a Prometheus registry so Prometheus will collect it.
 	prometheus.MustRegister(tp)
 
 	c := http.Client{Transport: tp}

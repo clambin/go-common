@@ -97,13 +97,19 @@ func newCacheMetrics(namespace, subsystem, application string) *cacheMetrics {
 
 var _ prometheus.Collector = &cacheMetrics{}
 
-// Describe implements the prometheus.Collector interface so clients can register roundTripperMetrics as a whole
+// Describe implements the prometheus.Collector interface
+//
+// cacheMetrics does not need to be registered and collected separately: it will be collected as part of the http.RoundTripper
+// created by NewRoundTripper.
 func (cm *cacheMetrics) Describe(ch chan<- *prometheus.Desc) {
 	cm.cache.Describe(ch)
 	cm.hits.Describe(ch)
 }
 
 // Collect implements the prometheus.Collector interface so clients can register roundTripperMetrics as a whole
+//
+// cacheMetrics does not need to be registered and collected separately: it will be collected as part of the http.RoundTripper
+// created by NewRoundTripper.
 func (cm *cacheMetrics) Collect(ch chan<- prometheus.Metric) {
 	cm.cache.Collect(ch)
 	cm.hits.Collect(ch)
