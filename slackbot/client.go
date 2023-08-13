@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/clambin/go-common/slackbot/internal/connector"
 	"github.com/slack-go/slack"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"sync"
 )
 

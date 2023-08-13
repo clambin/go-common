@@ -6,7 +6,7 @@ import (
 	"github.com/slack-go/slack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"

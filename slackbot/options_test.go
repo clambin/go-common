@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/slack-go/slack"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"os"
 	"testing"
 )

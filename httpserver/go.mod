@@ -1,13 +1,12 @@
 module github.com/clambin/go-common/httpserver
 
-go 1.19
+go 1.21
 
 require (
 	github.com/clambin/go-common/set v0.2.0
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 )
 
 require (
