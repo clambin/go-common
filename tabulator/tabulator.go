@@ -4,12 +4,12 @@ import (
 	"time"
 )
 
-// Tabulator tabulates a set of entries in rows by timestamp and columns by label.  For performance reasons, data must
+// Tabulator tabulates a set of entries in rows by timestamp and columns by label.  For performance reasons, Data must
 // be added sequentially.
 type Tabulator struct {
-	timestamps indexer[time.Time]
-	columns    indexer[string]
-	data       [][]float64
+	Timestamps indexer[time.Time]
+	Columns    indexer[string]
+	Data       [][]float64
 
 	lastTimestamp time.Time
 	lastRow       int
@@ -18,8 +18,8 @@ type Tabulator struct {
 // New creates a new Tabulator
 func New(columns ...string) *Tabulator {
 	t := &Tabulator{
-		timestamps: makeIndexer[time.Time](),
-		columns:    makeIndexer[string](),
+		Timestamps: makeIndexer[time.Time](),
+		Columns:    makeIndexer[string](),
 	}
 	t.RegisterColumn(columns...)
 	return t
@@ -41,29 +41,29 @@ func (t *Tabulator) Set(timestamp time.Time, column string, value float64) bool 
 }
 
 func (t *Tabulator) addOrSet(timestamp time.Time, column string, value float64, add bool) bool {
-	col, found := t.columns.GetIndex(column)
+	col, found := t.Columns.GetIndex(column)
 	if !found {
 		return false
 	}
 
 	var row int
-	// perf tweak: if data is mostly added in order, with many records for the same timestamp, cache the lastRow
+	// perf tweak: if Data is mostly added in order, with many records for the same timestamp, cache the lastRow
 	// to avoid map lookups in indexer.Add
 	if timestamp.Equal(t.lastTimestamp) {
 		row = t.lastRow
 	} else {
 		var added bool
-		if row, added = t.timestamps.Add(timestamp); added {
-			t.data = append(t.data, make([]float64, t.columns.Count()))
+		if row, added = t.Timestamps.Add(timestamp); added {
+			t.Data = append(t.Data, make([]float64, t.Columns.Count()))
 		}
 		t.lastTimestamp = timestamp
 		t.lastRow = row
 	}
 
 	if add {
-		value += t.data[row][col]
+		value += t.Data[row][col]
 	}
-	t.data[row][col] = value
+	t.Data[row][col] = value
 	return true
 }
 
@@ -75,39 +75,39 @@ func (t *Tabulator) RegisterColumn(column ...string) {
 }
 
 func (t *Tabulator) ensureColumnExists(column string) {
-	if _, added := t.columns.Add(column); added {
-		// new column. add data for the new column to each row
-		for key, entry := range t.data {
+	if _, added := t.Columns.Add(column); added {
+		// new column. add Data for the new column to each row
+		for key, entry := range t.Data {
 			entry = append(entry, 0)
-			t.data[key] = entry
+			t.Data[key] = entry
 		}
 	}
 }
 
 // Size returns the number of rows in the table.
 func (t *Tabulator) Size() int {
-	return len(t.data)
+	return len(t.Data)
 }
 
 // GetTimestamps returns the (sorted) list of timestamps in the table.
 func (t *Tabulator) GetTimestamps() []time.Time {
-	return t.timestamps.List()
+	return t.Timestamps.List()
 }
 
 // GetColumns returns the (sorted) list of column names.
 func (t *Tabulator) GetColumns() []string {
-	return t.columns.List()
+	return t.Columns.List()
 }
 
 // GetValues returns the value for the specified column for each timestamp in the table. The values are sorted by timestamp.
 func (t *Tabulator) GetValues(columnName string) ([]float64, bool) {
 	var values []float64
-	column, ok := t.columns.GetIndex(columnName)
+	column, ok := t.Columns.GetIndex(columnName)
 	if ok {
-		values = make([]float64, len(t.data))
-		for index, timestamp := range t.timestamps.List() {
-			row, _ := t.timestamps.GetIndex(timestamp)
-			values[index] = t.data[row][column]
+		values = make([]float64, len(t.Data))
+		for index, timestamp := range t.Timestamps.List() {
+			row, _ := t.Timestamps.GetIndex(timestamp)
+			values[index] = t.Data[row][column]
 		}
 	}
 	return values, ok
@@ -115,21 +115,21 @@ func (t *Tabulator) GetValues(columnName string) ([]float64, bool) {
 
 // Accumulate increments the values in each column.
 func (t *Tabulator) Accumulate() {
-	accumulated := make([]float64, t.columns.Count())
+	accumulated := make([]float64, t.Columns.Count())
 
 	for _, timestamp := range t.GetTimestamps() {
-		row, _ := t.timestamps.GetIndex(timestamp)
-		for idx, value := range t.data[row] {
+		row, _ := t.Timestamps.GetIndex(timestamp)
+		for idx, value := range t.Data[row] {
 			accumulated[idx] += value
 		}
-		copy(t.data[row], accumulated)
+		copy(t.Data[row], accumulated)
 	}
 }
 
 // Filter removes all rows that do not fall inside the specified time range. If the specified time is zero, it will be ignored.
 func (t *Tabulator) Filter(from, to time.Time) {
-	timestamps := make([]time.Time, 0, len(t.data))
-	d := make([][]float64, 0, len(t.data))
+	timestamps := make([]time.Time, 0, len(t.Data))
+	d := make([][]float64, 0, len(t.Data))
 
 	for _, timestamp := range t.GetTimestamps() {
 		if !from.IsZero() && timestamp.Before(from) {
@@ -138,24 +138,24 @@ func (t *Tabulator) Filter(from, to time.Time) {
 		if !to.IsZero() && timestamp.After(to) {
 			continue
 		}
-		row, _ := t.timestamps.GetIndex(timestamp)
+		row, _ := t.Timestamps.GetIndex(timestamp)
 		timestamps = append(timestamps, timestamp)
-		d = append(d, t.data[row])
+		d = append(d, t.Data[row])
 	}
 
-	t.timestamps = makeIndexerFromData(timestamps)
-	t.data = d
+	t.Timestamps = makeIndexerFromData(timestamps)
+	t.Data = d
 }
 
 func (t *Tabulator) Copy() *Tabulator {
 	result := &Tabulator{
-		timestamps: t.timestamps.Copy(),
-		columns:    t.columns.Copy(),
-		data:       make([][]float64, len(t.data)),
+		Timestamps: t.Timestamps.Copy(),
+		Columns:    t.Columns.Copy(),
+		Data:       make([][]float64, len(t.Data)),
 	}
-	for idx, row := range t.data {
-		result.data[idx] = make([]float64, len(row))
-		copy(result.data[idx], row)
+	for idx, row := range t.Data {
+		result.Data[idx] = make([]float64, len(row))
+		copy(result.Data[idx], row)
 	}
 	return result
 }

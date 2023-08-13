@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -236,4 +237,20 @@ func BenchmarkTabulator_Filter(b *testing.B) {
 			time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC),
 		)
 	}
+}
+
+func makeBigTable() *tabulator.Tabulator {
+	table := tabulator.New()
+	timestamp := time.Date(2023, time.July, 30, 0, 0, 0, 0, time.UTC)
+	for i := 0; i < 365; i++ {
+		for col := 0; col < 100; col++ {
+			colName := strconv.Itoa(col)
+			if i == 0 {
+				table.RegisterColumn(colName)
+			}
+			table.Add(timestamp, colName, float64(i))
+		}
+		timestamp = timestamp.Add(24 * time.Hour)
+	}
+	return table
 }
