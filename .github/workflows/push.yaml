@@ -27,6 +27,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go-version }}
+          cache-dependency-path: ${{ matrix.module }}/go.sum
       - name: test
         run: |
           cd ${{ matrix.module }}
