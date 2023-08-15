@@ -44,21 +44,19 @@ func TestTabulator_UnmarshalJSON(t *testing.T) {
 	assert.Len(t, table.GetTimestamps(), 4)
 	assert.Equal(t, []string{"A", "B", "C", "D"}, table.GetColumns())
 
-	values, ok := table.GetValues("A")
-	require.True(t, ok)
-	assert.Equal(t, []float64{1, 0, 0, 0}, values)
-
-	values, ok = table.GetValues("B")
-	require.True(t, ok)
-	assert.Equal(t, []float64{0, 2, 0, 0}, values)
-
-	values, ok = table.GetValues("C")
-	require.True(t, ok)
-	assert.Equal(t, []float64{0, 0, 3, 0}, values)
-
-	values, ok = table.GetValues("D")
-	require.True(t, ok)
-	assert.Equal(t, []float64{0, 0, 0, 4}, values)
+	for _, column := range []struct {
+		name   string
+		values []float64
+	}{
+		{name: "A", values: []float64{1, 0, 0, 0}},
+		{name: "B", values: []float64{0, 2, 0, 0}},
+		{name: "C", values: []float64{0, 0, 3, 0}},
+		{name: "D", values: []float64{0, 0, 0, 4}},
+	} {
+		values, ok := table.GetValues(column.name)
+		require.True(t, ok)
+		assert.Equal(t, column.values, values, column.name)
+	}
 }
 
 func BenchmarkTabulator_UnmarshalJSON(b *testing.B) {
