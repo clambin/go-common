@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/slack-go/slack"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"regexp"
 	"strings"
 	"sync"

@@ -73,9 +73,7 @@ func (m *Manager) shutdown(ch chan error) error {
 	for range m.tasks {
 		errs = append(errs, <-ch)
 	}
-	// while we're supporting pre-1.20
-	//return errors.Join(errs...)
-	return joinErrors(errs...)
+	return errors.Join(errs...)
 }
 
 func (m *Manager) setRunning(running bool) error {

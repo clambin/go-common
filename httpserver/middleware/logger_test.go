@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"github.com/clambin/go-common/httpserver/middleware"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"

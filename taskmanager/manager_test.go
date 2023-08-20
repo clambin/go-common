@@ -28,7 +28,9 @@ func TestManager_Run(t *testing.T) {
 
 	cancel()
 	assert.NoError(t, <-ch)
+	assert.False(t, w1.running)
 	assert.Equal(t, 1, w1.runCounter)
+	assert.False(t, w2.running)
 	assert.Equal(t, 1, w2.runCounter)
 }
 
@@ -82,14 +84,19 @@ func TestManager_Run_Timeout(t *testing.T) {
 
 type waiter struct {
 	runCounter int
+	running    bool
 	lock       sync.Mutex
 }
 
 func (w *waiter) Run(ctx context.Context) error {
 	w.lock.Lock()
+	w.running = true
 	w.runCounter++
 	w.lock.Unlock()
 	<-ctx.Done()
+	w.lock.Lock()
+	w.running = false
+	w.lock.Unlock()
 	return nil
 }
 

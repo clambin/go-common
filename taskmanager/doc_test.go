@@ -27,7 +27,7 @@ func Example() {
 	})
 	_ = m.Add(httpserver.New(":8080", r))
 
-	// Add a Prometheus server
+	// Add a Prometheus server.
 	_ = m.Add(prometheus.New(prometheus.WithAddr(":9092")))
 
 	// Run until the program is interrupted.
