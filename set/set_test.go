@@ -3,7 +3,7 @@ package set_test
 import (
 	"github.com/clambin/go-common/set"
 	"github.com/stretchr/testify/assert"
-	"sort"
+	"slices"
 	"testing"
 )
 
@@ -81,7 +81,7 @@ func TestSet_List(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := tt.input.List()
-			sort.Strings(l)
+			slices.Sort(l)
 			assert.Equal(t, tt.expected, l)
 		})
 	}
@@ -138,9 +138,9 @@ func TestCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := set.Create(tt.input...).List()
-			sort.Strings(output)
-			assert.Equal(t, tt.expected, output)
+			l := set.Create(tt.input...).List()
+			slices.Sort(l)
+			assert.Equal(t, tt.expected, l)
 		})
 	}
 }

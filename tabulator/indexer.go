@@ -1,7 +1,8 @@
 package tabulator
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"time"
 )
 
@@ -36,7 +37,7 @@ func makeIndexerFromData[T ordered](data []T) indexer[T] {
 
 	var previous T
 	for row, entry := range data {
-		if !isLessThan(previous, entry) {
+		if compare(previous, entry) <= 0 {
 			index.InOrder = false
 		}
 		index.Indices[entry] = row
@@ -58,7 +59,7 @@ func (idx *indexer[T]) Count() int {
 // List returns the (sorted) values in the indexer
 func (idx *indexer[T]) List() []T {
 	if !idx.InOrder {
-		sort.Slice(idx.Values, func(i, j int) bool { return isLessThan(idx.Values[i], idx.Values[j]) })
+		slices.SortFunc(idx.Values, compare[T])
 		idx.InOrder = true
 	}
 	return idx.Values
@@ -76,21 +77,27 @@ func (idx *indexer[T]) Add(value T) (int, bool) {
 	idx.Indices[value] = index
 
 	if idx.InOrder && index > 0 {
-		idx.InOrder = !isLessThan(value, idx.Values[index-1])
+		idx.InOrder = compare(value, idx.Values[index-1]) >= 0
 	}
 	idx.Values = append(idx.Values, value)
 	return index, true
 }
 
-func isLessThan[T ordered](a, b T) bool {
+func compare[T ordered](a, b T) int {
 	// this works around the fact that we can't type switch on T
 	var x interface{} = a
 	var y interface{} = b
 	switch (x).(type) {
 	case string:
-		return x.(string) < y.(string)
+		return cmp.Compare(x.(string), y.(string)) //x.(string) < y.(string)
 	case time.Time:
-		return x.(time.Time).Before(y.(time.Time))
+		if x.(time.Time).Equal(y.(time.Time)) {
+			return 0
+		}
+		if x.(time.Time).Before(y.(time.Time)) {
+			return -1
+		}
+		return 1
 	}
 	panic("unsupported type")
 }
