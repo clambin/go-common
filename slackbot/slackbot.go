@@ -3,9 +3,9 @@ package slackbot
 import (
 	"context"
 	"fmt"
+	"github.com/clambin/go-common/slackbot/internal/commands"
 	"github.com/slack-go/slack"
 	"log/slog"
-	"regexp"
 	"strings"
 	"sync"
 )
@@ -113,25 +113,11 @@ func (b *SlackBot) parseCommand(input string) (string, []string, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	words := tokenizeText(input)
+	words := commands.TokenizeText(input)
 	if len(words) == 0 || words[0] != "<@"+userID+">" {
 		return "", nil, nil
 	}
 	return words[1], words[2:], nil
-}
-
-func tokenizeText(input string) []string {
-	cleanInput := input
-	for _, quote := range []string{"“", "”", "'"} {
-		cleanInput = strings.ReplaceAll(cleanInput, quote, "\"")
-	}
-	r := regexp.MustCompile(`[^\s"]+|"([^"]*)"`)
-	output := r.FindAllString(cleanInput, -1)
-
-	for index, word := range output {
-		output[index] = strings.Trim(word, "\"")
-	}
-	return output
 }
 
 func (b *SlackBot) doHelp(_ context.Context, _ ...string) []slack.Attachment {

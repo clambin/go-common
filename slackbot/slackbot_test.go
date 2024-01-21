@@ -156,3 +156,55 @@ func TestSlackBot_Commands(t *testing.T) {
 	cancel()
 	wg.Wait()
 }
+
+func TestParseCommand(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		command string
+		args    []string
+	}{
+		{
+			name: "empty string",
+		},
+		{
+			name:  "chatter",
+			input: "hello world",
+		},
+		{
+			name:    "single command",
+			input:   "<@123> version",
+			command: "version",
+		},
+		{
+			name:    "command arguments",
+			input:   "<@123> foo bar snafu",
+			command: "foo",
+			args:    []string{"bar", "snafu"},
+		},
+		{
+			name:    "arguments with quotes",
+			input:   `<@123> foo "bar snafu"`,
+			command: "foo",
+			args:    []string{"bar snafu"},
+		},
+		{
+			name:    "fancy quotes",
+			input:   `<@123> foo “bar snafu“ foobar`,
+			command: "foo",
+			args:    []string{"bar snafu", "foobar"},
+		},
+	}
+
+	b := New("some-token")
+	b.client.userID = "123"
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			command, args, err := b.parseCommand(tt.input)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.command, command)
+			assert.Equal(t, len(tt.args), len(args))
+		})
+	}
+}
