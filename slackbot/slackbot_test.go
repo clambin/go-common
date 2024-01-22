@@ -16,11 +16,10 @@ func TestSlackBot_Run(t *testing.T) {
 	b.client.connector = f
 
 	ctx, cancel := context.WithCancel(context.Background())
-	var wg sync.WaitGroup
-	wg.Add(1)
+	ch := make(chan struct{})
 	go func() {
-		defer wg.Done()
-		b.Run(ctx)
+		_ = b.Run(ctx)
+		ch <- struct{}{}
 	}()
 
 	f.Connect()
@@ -30,7 +29,7 @@ func TestSlackBot_Run(t *testing.T) {
 	assert.Equal(t, connector.PostedMessage{ChannelID: "123", Attachments: []slack.Attachment{{Color: "good", Text: "slackbot"}}}, msg)
 
 	cancel()
-	wg.Wait()
+	<-ch
 }
 
 func TestSlackBot_Send(t *testing.T) {
@@ -39,10 +38,8 @@ func TestSlackBot_Send(t *testing.T) {
 	b.client.connector = f
 
 	ctx, cancel := context.WithCancel(context.Background())
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() { defer wg.Done(); b.Run(ctx) }()
+	ch := make(chan struct{})
+	go func() { _ = b.Run(ctx); ch <- struct{}{} }()
 
 	err := b.Send("bar", []slack.Attachment{{
 		Color: "good",
@@ -77,12 +74,12 @@ func TestSlackBot_Send(t *testing.T) {
 	}, <-f.ToSlack)
 
 	cancel()
-	wg.Wait()
+	<-ch
 }
 
 func TestSlackBot_Commands(t *testing.T) {
 	b := New("some-token",
-		WithCommands(map[string]CommandFunc{
+		WithCommands(map[string]Handler{
 			"foo": func(_ context.Context, _ ...string) []slack.Attachment {
 				return []slack.Attachment{{Color: "good", Title: "bar", Text: "snafu"}}
 			},
@@ -101,7 +98,7 @@ func TestSlackBot_Commands(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		b.Run(ctx)
+		_ = b.Run(ctx)
 	}()
 
 	f.Connect()
@@ -135,7 +132,8 @@ func TestSlackBot_Commands(t *testing.T) {
 		},
 		{
 			command: "invalid command",
-			text:    "unrecognized command",
+			title:   "invalid command",
+			text:    "supported commands: bar, foo, help, version",
 		},
 	}
 
@@ -159,10 +157,9 @@ func TestSlackBot_Commands(t *testing.T) {
 
 func TestParseCommand(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   string
-		command string
-		args    []string
+		name  string
+		input string
+		args  []string
 	}{
 		{
 			name: "empty string",
@@ -172,27 +169,24 @@ func TestParseCommand(t *testing.T) {
 			input: "hello world",
 		},
 		{
-			name:    "single command",
-			input:   "<@123> version",
-			command: "version",
+			name:  "single command",
+			input: "<@123> version",
+			args:  []string{"version"},
 		},
 		{
-			name:    "command arguments",
-			input:   "<@123> foo bar snafu",
-			command: "foo",
-			args:    []string{"bar", "snafu"},
+			name:  "command arguments",
+			input: "<@123> foo bar snafu",
+			args:  []string{"foo", "bar", "snafu"},
 		},
 		{
-			name:    "arguments with quotes",
-			input:   `<@123> foo "bar snafu"`,
-			command: "foo",
-			args:    []string{"bar snafu"},
+			name:  "arguments with quotes",
+			input: `<@123> foo "bar snafu"`,
+			args:  []string{"foo", "bar snafu"},
 		},
 		{
-			name:    "fancy quotes",
-			input:   `<@123> foo “bar snafu“ foobar`,
-			command: "foo",
-			args:    []string{"bar snafu", "foobar"},
+			name:  "fancy quotes",
+			input: `<@123> foo “bar snafu“ foobar`,
+			args:  []string{"foo", "bar snafu", "foobar"},
 		},
 	}
 
@@ -201,10 +195,9 @@ func TestParseCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			command, args, err := b.parseCommand(tt.input)
+			args, err := b.parseCommand(tt.input)
 			assert.NoError(t, err)
-			assert.Equal(t, tt.command, command)
-			assert.Equal(t, len(tt.args), len(args))
+			assert.Equal(t, tt.args, args)
 		})
 	}
 }

@@ -28,12 +28,12 @@ func TestWithLogger(t *testing.T) {
 
 func TestWithCommands(t *testing.T) {
 	b := New("123")
-	assert.Equal(t, []string{"help", "version"}, b.commandRunner.GetCommands())
+	assert.Equal(t, []string{"help", "version"}, b.commands.GetCommands())
 
-	b = New("123", WithCommands(map[string]CommandFunc{
+	b = New("123", WithCommands(map[string]Handler{
 		"test": func(_ context.Context, args ...string) []slack.Attachment {
 			return nil
 		},
 	}))
-	assert.Equal(t, []string{"help", "test", "version"}, b.commandRunner.GetCommands())
+	assert.Equal(t, []string{"help", "test", "version"}, b.commands.GetCommands())
 }

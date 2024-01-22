@@ -1,4 +1,4 @@
-package commands
+package slackbot
 
 import (
 	"context"
@@ -9,36 +9,30 @@ import (
 	"sync"
 )
 
-type Doer interface {
-	Do(context.Context, ...string) []slack.Attachment
-}
-
-type Action func(ctx context.Context, args ...string) []slack.Attachment
-type ActionFunc Action
-
-func (f ActionFunc) Do(ctx context.Context, args ...string) []slack.Attachment {
-	return f(ctx, args...)
-}
+type Handler func(context.Context, ...string) []slack.Attachment
 
 type Command struct {
-	subCommands map[string]Doer
-	doer        Doer
+	subCommands map[string]*Command
+	handler     Handler
 	lock        sync.RWMutex
 }
 
-func New() *Command {
-	return &Command{
-		subCommands: make(map[string]Doer),
-	}
-}
-
-func (c *Command) Register(verb string, action Doer) {
+func (c *Command) Add(verb string, handler Handler) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.subCommands[verb] = &Command{
-		subCommands: make(map[string]Doer),
-		doer:        action,
+	if c.subCommands == nil {
+		c.subCommands = make(map[string]*Command)
 	}
+	c.subCommands[verb] = &Command{handler: handler}
+}
+
+func (c *Command) AddCommand(verb string, command *Command) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	if c.subCommands == nil {
+		c.subCommands = make(map[string]*Command)
+	}
+	c.subCommands[verb] = command
 }
 
 func (c *Command) GetCommands() []string {
@@ -52,21 +46,20 @@ func (c *Command) GetCommands() []string {
 	return commands
 }
 
-func (c *Command) Do(ctx context.Context, args ...string) []slack.Attachment {
+func (c *Command) handle(ctx context.Context, args ...string) []slack.Attachment {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	subCmd, subArgs := split(args...)
-	if subCmd != "" {
+	if subCmd, subArgs := split(args...); subCmd != "" {
 		if subCommand, ok := c.subCommands[subCmd]; ok {
-			return subCommand.Do(ctx, subArgs...)
+			return subCommand.handle(ctx, subArgs...)
 		}
 	}
 
-	if c.doer == nil {
+	if c.handler == nil {
 		return c.invalidCommand()
 	}
-	return c.doer.Do(ctx, args...)
+	return c.handler(ctx, args...)
 }
 
 func split(args ...string) (string, []string) {

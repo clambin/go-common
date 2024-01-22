@@ -1,6 +1,8 @@
 package slackbot
 
-import "log/slog"
+import (
+	"log/slog"
+)
 
 type Option func(*SlackBot)
 
@@ -10,10 +12,10 @@ func WithName(name string) Option {
 	}
 }
 
-func WithCommands(commands map[string]CommandFunc) Option {
+func WithCommands(commands map[string]Handler) Option {
 	return func(b *SlackBot) {
 		for name, command := range commands {
-			b.commands[name] = command
+			b.commands.Add(name, command)
 		}
 	}
 }

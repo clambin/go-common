@@ -3,7 +3,6 @@ package slackbot
 import (
 	"context"
 	"fmt"
-	"github.com/clambin/go-common/slackbot/internal/commands"
 	"github.com/slack-go/slack"
 	"log/slog"
 	"strings"
@@ -12,39 +11,34 @@ import (
 
 // SlackBot connects to Slack through Slack's Bot integration.
 type SlackBot struct {
-	client        *slackClient
-	name          string
-	commands      map[string]CommandFunc
-	commandRunner *commandRunner
-	logger        *slog.Logger
+	client   *slackClient
+	name     string
+	commands *Command
+	logger   *slog.Logger
 }
-
-// CommandFunc signature for command callback functions
-type CommandFunc func(ctx context.Context, args ...string) []slack.Attachment
 
 // New creates a new slackbot
 func New(slackToken string, options ...Option) *SlackBot {
 	b := &SlackBot{
 		name:     "slackbot",
-		commands: make(map[string]CommandFunc),
+		commands: &Command{},
 		logger:   slog.Default(),
 	}
-	b.commands["help"] = b.doHelp
-	b.commands["version"] = b.doVersion
+	b.commands.Add("help", b.doHelp)
+	b.commands.Add("version", b.doVersion)
 
 	for _, option := range options {
 		option(b)
 	}
 
 	b.client = newSlackClient(slackToken, b.logger)
-	b.commandRunner = &commandRunner{commands: b.commands}
 
 	return b
 }
 
 // Register adds a new command
-func (b *SlackBot) Register(name string, command CommandFunc) {
-	b.commandRunner.Register(name, command)
+func (b *SlackBot) Register(name string, command Handler) {
+	b.commands.Add(name, command)
 }
 
 // Run the slackbot
@@ -72,17 +66,17 @@ func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEve
 		"text", message.Text,
 	)
 
-	command, args, err := b.parseCommand(message.Text)
+	args, err := b.parseCommand(message.Text)
 	if err != nil {
 		return fmt.Errorf("parse failed: %w", err)
 	}
 
-	if command == "" {
+	if len(args) == 0 {
 		return nil
 	}
 
-	b.logger.Debug("running command", "command", command, "args", args)
-	output := b.commandRunner.Do(ctx, command, args...)
+	b.logger.Debug("running command", "args", args)
+	output := b.commands.handle(ctx, args...)
 
 	err = b.Send(message.Channel, output)
 	if err != nil {
@@ -108,23 +102,26 @@ func (b *SlackBot) Send(channel string, attachments []slack.Attachment) error {
 	return nil
 }
 
-func (b *SlackBot) parseCommand(input string) (string, []string, error) {
+func (b *SlackBot) parseCommand(input string) ([]string, error) {
 	userID, err := b.client.GetUserID()
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
-	words := commands.TokenizeText(input)
+	words := TokenizeText(input)
 	if len(words) == 0 || words[0] != "<@"+userID+">" {
-		return "", nil, nil
+		return nil, nil
 	}
-	return words[1], words[2:], nil
+	if len(words) == 1 {
+		return nil, nil
+	}
+	return words[1:], nil
 }
 
 func (b *SlackBot) doHelp(_ context.Context, _ ...string) []slack.Attachment {
 	return []slack.Attachment{{
 		Color: "good",
 		Title: "supported commands",
-		Text:  strings.Join(b.commandRunner.GetCommands(), ", "),
+		Text:  strings.Join(b.commands.GetCommands(), ", "),
 	}}
 }
 

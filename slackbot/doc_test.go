@@ -7,7 +7,7 @@ import (
 )
 
 func Example() {
-	b := slackbot.New("my-slack-token", slackbot.WithCommands(map[string]slackbot.CommandFunc{
+	b := slackbot.New("my-slack-token", slackbot.WithCommands(map[string]slackbot.Handler{
 		"hello": func(_ context.Context, _ ...string) []slack.Attachment {
 			return []slack.Attachment{{
 				Color: "good",
@@ -16,5 +16,5 @@ func Example() {
 		},
 	}))
 
-	b.Run(context.Background())
+	_ = b.Run(context.Background())
 }
