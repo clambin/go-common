@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"github.com/slack-go/slack"
 	"log/slog"
+	"regexp"
 	"strings"
 	"sync"
 )
 
 // SlackBot connects to Slack through Slack's Bot integration.
 type SlackBot struct {
+	Commands *Command
 	client   *slackClient
 	name     string
-	commands *Command
 	logger   *slog.Logger
 }
 
@@ -21,11 +22,11 @@ type SlackBot struct {
 func New(slackToken string, options ...Option) *SlackBot {
 	b := &SlackBot{
 		name:     "slackbot",
-		commands: &Command{},
+		Commands: &Command{},
 		logger:   slog.Default(),
 	}
-	b.commands.Add("help", b.doHelp)
-	b.commands.Add("version", b.doVersion)
+	b.Commands.Add("help", b.doHelp)
+	b.Commands.Add("version", b.doVersion)
 
 	for _, option := range options {
 		option(b)
@@ -34,11 +35,6 @@ func New(slackToken string, options ...Option) *SlackBot {
 	b.client = newSlackClient(slackToken, b.logger)
 
 	return b
-}
-
-// Register adds a new command
-func (b *SlackBot) Register(name string, command Handler) {
-	b.commands.Add(name, command)
 }
 
 // Run the slackbot
@@ -76,15 +72,46 @@ func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEve
 	}
 
 	b.logger.Debug("running command", "args", args)
-	output := b.commands.handle(ctx, args...)
+	output := b.Commands.handle(ctx, args...)
 
 	err = b.Send(message.Channel, output)
 	if err != nil {
-		err = fmt.Errorf("post to Slack failed: %w", err)
+		err = fmt.Errorf("send to Slack failed: %w", err)
 	}
 	return err
 }
 
+func (b *SlackBot) parseCommand(input string) ([]string, error) {
+	userID, err := b.client.GetUserID()
+	if err != nil {
+		return nil, err
+	}
+	words := tokenizeText(input)
+	if len(words) == 0 || words[0] != "<@"+userID+">" {
+		return nil, nil
+	}
+	if len(words) == 1 {
+		return nil, nil
+	}
+	return words[1:], nil
+}
+
+func tokenizeText(input string) []string {
+	cleanInput := input
+	for _, quote := range []string{"“", "”", "'"} {
+		cleanInput = strings.ReplaceAll(cleanInput, quote, "\"")
+	}
+	r := regexp.MustCompile(`[^\s"]+|"([^"]*)"`)
+	output := r.FindAllString(cleanInput, -1)
+
+	for index, word := range output {
+		output[index] = strings.Trim(word, "\"")
+	}
+	return output
+}
+
+// Send posts the provided messages to Slack on the provided channel. If channel is blank,
+// the messages will be posted to all channels that the bot has access to.
 func (b *SlackBot) Send(channel string, attachments []slack.Attachment) error {
 	channelIDs := []string{channel}
 	if channel == "" {
@@ -102,26 +129,12 @@ func (b *SlackBot) Send(channel string, attachments []slack.Attachment) error {
 	return nil
 }
 
-func (b *SlackBot) parseCommand(input string) ([]string, error) {
-	userID, err := b.client.GetUserID()
-	if err != nil {
-		return nil, err
-	}
-	words := TokenizeText(input)
-	if len(words) == 0 || words[0] != "<@"+userID+">" {
-		return nil, nil
-	}
-	if len(words) == 1 {
-		return nil, nil
-	}
-	return words[1:], nil
-}
-
+// TODO: this only works for top-level commands. Should this be part of Command functionality?
 func (b *SlackBot) doHelp(_ context.Context, _ ...string) []slack.Attachment {
 	return []slack.Attachment{{
 		Color: "good",
 		Title: "supported commands",
-		Text:  strings.Join(b.commands.GetCommands(), ", "),
+		Text:  strings.Join(b.Commands.GetCommands(), ", "),
 	}}
 }
 
