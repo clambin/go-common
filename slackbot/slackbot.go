@@ -76,7 +76,7 @@ func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEve
 
 	args, err := b.parseCommand(message.Text)
 	if err != nil {
-		return fmt.Errorf("parse failed: %w", err)
+		return fmt.Errorf("parse: %w", err)
 	}
 
 	if len(args) == 0 {
@@ -86,11 +86,7 @@ func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEve
 	b.logger.Debug("running command", "args", args)
 	output := b.Commands.handle(ctx, args...)
 
-	err = b.Send(message.Channel, output)
-	if err != nil {
-		err = fmt.Errorf("send to Slack failed: %w", err)
-	}
-	return err
+	return b.Send(message.Channel, output)
 }
 
 func (b *SlackBot) parseCommand(input string) ([]string, error) {

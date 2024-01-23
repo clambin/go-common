@@ -114,139 +114,82 @@ func TestSlackBot_Send(t *testing.T) {
 			tt.wantErr(t, err)
 		})
 	}
-	/*
-		ctx, cancel := context.WithCancel(context.Background())
-		ev := make(chan *slack.MessageEvent)
-
-		f := mocks.NewSlackClient(t)
-		f.EXPECT().GetMessage().Return(ev)
-		f.EXPECT().Run(ctx)
-		f.EXPECT().GetChannels().Return([]string{"foo", "bar"}, nil)
-
-		b := New("some-token")
-		b.client = f
-
-		ch := make(chan struct{})
-		go func() { _ = b.Run(ctx); ch <- struct{}{} }()
-
-		f.EXPECT().Send("bar", []slack.Attachment{{
-			Color: "good",
-			Title: "hello",
-			Text:  "world",
-		}}).Return(nil).Twice()
-
-		err := b.Send("bar", []slack.Attachment{{
-			Color: "good",
-			Title: "hello",
-			Text:  "world",
-		}})
-		require.NoError(t, err)
-
-		err = b.Send("", []slack.Attachment{{
-			Color: "good",
-			Title: "hello",
-			Text:  "world",
-		}})
-		require.NoError(t, err)
-
-		cancel()
-		<-ch
-
-	*/
 }
 
-func TestSlackBot_Commands(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	ev := make(chan *slack.MessageEvent)
-
-	f := mocks.NewSlackClient(t)
-	f.EXPECT().GetUserID().Return("123", nil)
-	f.EXPECT().GetMessage().Return(ev)
-	f.EXPECT().Run(ctx)
-	f.EXPECT().GetChannels().Return([]string{"bar"}, nil)
-
-	b := New("some-token",
-		WithCommands(map[string]Handler{
-			"foo": func(_ context.Context, _ ...string) []slack.Attachment {
-				return []slack.Attachment{{Color: "good", Title: "bar", Text: "snafu"}}
-			},
-		}),
-		WithName("command-test"),
-	)
-	b.Commands.Add("bar", func(_ context.Context, _ ...string) []slack.Attachment {
-		return []slack.Attachment{}
-	})
-	b.client = f
-
-	ch := make(chan error)
-	go func() {
-		ch <- b.Run(ctx)
-	}()
-
+func TestSlackBot_processMessage(t *testing.T) {
 	tests := []struct {
-		command string
-		want    []slack.Attachment
-		title   string
-		text    string
+		name      string
+		message   *slack.MessageEvent
+		userIDErr error
+		want      []slack.Attachment
+		wantErr   assert.ErrorAssertionFunc
 	}{
 		{
-			command: "version",
-			want: []slack.Attachment{{
-				Color: "good",
-				Text:  "command-test",
-			}},
+			name:    "empty",
+			message: &slack.MessageEvent{Msg: slack.Msg{Text: ""}},
+			wantErr: assert.NoError,
 		},
 		{
-			command: "help",
-			want: []slack.Attachment{{
-				Color: "good",
-				Title: "supported commands",
-				Text:  "bar, foo, help, version",
-			}},
+			name:    "chatter",
+			message: &slack.MessageEvent{Msg: slack.Msg{Text: "chatter"}},
+			wantErr: assert.NoError,
 		},
 		{
-			command: "foo",
-			want: []slack.Attachment{{
-				Color: "good",
-				Title: "bar",
-				Text:  "snafu",
-			}},
+			name:    "version",
+			message: &slack.MessageEvent{Msg: slack.Msg{Text: "<@123> version"}},
+			want:    []slack.Attachment{{Color: "good", Text: "name"}},
+			wantErr: assert.NoError,
 		},
 		{
-			command: "foo bar",
-			want: []slack.Attachment{{
-				Color: "good",
-				Title: "bar",
-				Text:  "snafu",
-			}},
+			name:    "help",
+			message: &slack.MessageEvent{Msg: slack.Msg{Text: "<@123> help"}},
+			want:    []slack.Attachment{{Color: "good", Title: "supported commands", Text: "foo, help, version"}},
+			wantErr: assert.NoError,
 		},
 		{
-			command: "bar",
-			want:    []slack.Attachment{},
+			name:    "command",
+			message: &slack.MessageEvent{Msg: slack.Msg{Text: "<@123> foo"}},
+			want:    []slack.Attachment{{Color: "good", Title: "bar", Text: "snafu"}},
+			wantErr: assert.NoError,
 		},
 		{
-			command: "invalid command",
-			want: []slack.Attachment{{
-				Color: "bad",
-				Title: "invalid command",
-				Text:  "supported commands: bar, foo, help, version",
-			}},
+			name:      "error",
+			message:   &slack.MessageEvent{Msg: slack.Msg{Text: "<@123> version"}},
+			userIDErr: slack_client.ErrNotConnected,
+			//want:      []slack.Attachment{{Color: "good", Text: "name"}},
+			wantErr: assert.Error,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.command, func(t *testing.T) {
-			f.EXPECT().Send("bar", tt.want).Return(nil)
-			ev <- &slack.MessageEvent{Msg: slack.Msg{Text: "<@123> " + tt.command}}
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			c := mocks.NewSlackClient(t)
+			c.EXPECT().GetUserID().Return("123", tt.userIDErr).Maybe()
+			c.EXPECT().GetChannels().Return([]string{"foo"}, nil).Maybe()
+			if tt.want != nil {
+				c.EXPECT().Send("foo", tt.want).Return(nil)
+			}
+
+			b := New("some-token", WithName("name"), WithCommands(map[string]Handler{
+				"foo": func(_ context.Context, _ ...string) []slack.Attachment {
+					return []slack.Attachment{{Color: "good", Title: "bar", Text: "snafu"}}
+				},
+			}),
+			)
+			b.client = c
+
+			tt.wantErr(t, b.processMessage(ctx, tt.message))
 
 		})
 	}
-
-	cancel()
-	assert.NoError(t, <-ch)
 }
 
-func TestParseCommand(t *testing.T) {
+func TestSlackbot_parseCommand(t *testing.T) {
 	tests := []struct {
 		name        string
 		input       string
