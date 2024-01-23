@@ -3,6 +3,7 @@ package slackbot
 import (
 	"context"
 	"fmt"
+	slackclient "github.com/clambin/go-common/slackbot/internal/slack-client"
 	"github.com/slack-go/slack"
 	"log/slog"
 	"regexp"
@@ -13,9 +14,17 @@ import (
 // SlackBot connects to Slack through Slack's Bot integration.
 type SlackBot struct {
 	Commands *Command
-	client   *slackClient
+	client   SlackClient
 	name     string
 	logger   *slog.Logger
+}
+
+type SlackClient interface {
+	Run(context.Context)
+	GetMessage() chan *slack.MessageEvent
+	Send(channelID string, attachments []slack.Attachment) error
+	GetUserID() (string, error)
+	GetChannels() ([]string, error)
 }
 
 // New creates a new slackbot
@@ -32,7 +41,7 @@ func New(slackToken string, options ...Option) *SlackBot {
 		option(b)
 	}
 
-	b.client = newSlackClient(slackToken, b.logger)
+	b.client = slackclient.New(slackToken, b.logger.With("component", "slack-client"))
 
 	return b
 }
@@ -56,6 +65,9 @@ func (b *SlackBot) Run(ctx context.Context) error {
 }
 
 func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEvent) error {
+	if message.Text == "" {
+		return nil
+	}
 	b.logger.Debug("message received",
 		"user.id", message.User,
 		"user.name", message.Username,
