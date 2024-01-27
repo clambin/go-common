@@ -8,55 +8,46 @@ import (
 	"sync"
 )
 
-// A Handler executes a command and returns messages to be posted to Slack.
-type Handler func(context.Context, ...string) []slack.Attachment
+// A Handler executes a Command and returns messages to be posted to Slack.
+type Handler interface {
+	Handle(context.Context, ...string) []slack.Attachment
+}
+type HandlerFunc func(context.Context, ...string) []slack.Attachment
 
-// A Command holds the set of commands supported by a SlackBot.
-//
-// In its simplest form, Command contains a set of command names, with a corresponding Handler that executes the command:
-//
-//	Command:
-//	  "foo" -> Handler
-//	  "bar" -> Handler
-//
-// This supports two commands "foo" and "bar".
-//
-// More complex command structures can be created by using AddCommand to nest Command structures:
-//
-//	Command:
-//	  "foo" -> Command:
-//	             "bar"   -> Handler
-//	             "snafu" -> Handler
-//
-// This supports two compound commands, "foo bar" and "foo snafu", each with their own handlers.
-type Command struct {
-	subCommands map[string]*Command
-	handler     Handler
+func (f HandlerFunc) Handle(ctx context.Context, args ...string) []slack.Attachment {
+	return f(ctx, args...)
+}
+
+type Commands map[string]Handler
+
+var _ Handler = &CommandGroup{}
+
+type CommandGroup struct {
+	subCommands Commands
 	lock        sync.RWMutex
 }
 
-// Add a new command
-func (c *Command) Add(verb string, handler Handler) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	if c.subCommands == nil {
-		c.subCommands = make(map[string]*Command)
-	}
-	c.subCommands[verb] = &Command{handler: handler}
+func NewCommandGroup(commands Commands) *CommandGroup {
+	var g CommandGroup
+	g.Add(commands)
+	return &g
 }
 
-// AddCommand adds a compound command (i.e. a command that holds several subcommands).
-func (c *Command) AddCommand(verb string, command *Command) {
+func (c *CommandGroup) Add(commands Commands) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.subCommands == nil {
-		c.subCommands = make(map[string]*Command)
+		c.subCommands = commands
+		return
 	}
-	c.subCommands[verb] = command
+
+	for verb, handler := range commands {
+		c.subCommands[verb] = handler
+	}
 }
 
 // GetCommands returns all commands supported by the Command.
-func (c *Command) GetCommands() []string {
+func (c *CommandGroup) GetCommands() []string {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	commands := make([]string, 0, len(c.subCommands))
@@ -67,20 +58,21 @@ func (c *Command) GetCommands() []string {
 	return commands
 }
 
-func (c *Command) handle(ctx context.Context, args ...string) []slack.Attachment {
+func (c *CommandGroup) Handle(ctx context.Context, args ...string) []slack.Attachment {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
 	if subCmd, subArgs := split(args...); subCmd != "" {
 		if subCommand, ok := c.subCommands[subCmd]; ok {
-			return subCommand.handle(ctx, subArgs...)
+			return subCommand.Handle(ctx, subArgs...)
 		}
 	}
 
-	if c.handler == nil {
-		return c.invalidCommand()
-	}
-	return c.handler(ctx, args...)
+	return []slack.Attachment{{
+		Title: "invalid command",
+		Color: "bad",
+		Text:  "supported commands: " + strings.Join(c.GetCommands(), ", "),
+	}}
 }
 
 func split(args ...string) (string, []string) {
@@ -91,12 +83,4 @@ func split(args ...string) (string, []string) {
 		return args[0], nil
 	}
 	return args[0], args[1:]
-}
-
-func (c *Command) invalidCommand() []slack.Attachment {
-	return []slack.Attachment{{
-		Title: "invalid command",
-		Color: "bad",
-		Text:  "supported commands: " + strings.Join(c.GetCommands(), ", "),
-	}}
 }

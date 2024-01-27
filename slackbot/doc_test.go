@@ -2,35 +2,39 @@ package slackbot_test
 
 import (
 	"context"
+	"fmt"
 	"github.com/clambin/go-common/slackbot"
 	"github.com/slack-go/slack"
+	"strings"
 )
 
 func Example() {
-	b := slackbot.New("my-slack-token", slackbot.WithCommands(map[string]slackbot.Handler{
-		"hello": func(_ context.Context, _ ...string) []slack.Attachment {
+	b := slackbot.New("my-slack-token", slackbot.WithCommands(slackbot.Commands{
+		"hello": slackbot.HandlerFunc(func(_ context.Context, _ ...string) []slack.Attachment {
 			return []slack.Attachment{{Color: "good", Text: "General Kenobi!"}}
-		},
+		}),
 	}))
 
-	_ = b.Run(context.Background())
+	fmt.Println("Commands: " + strings.Join(b.GetCommands(), ", "))
+	// Output: Commands: hello, help, version
 }
 
-func ExampleCommand_AddCommand() {
+func ExampleCommandGroup_Add() {
 	b := slackbot.New("my-slack-token")
-	b.Commands = &slackbot.Command{}
-	b.Commands.Add("hello", func(ctx context.Context, s ...string) []slack.Attachment {
-		return []slack.Attachment{{Color: "good", Text: "General Kenobi!"}}
+	b.Add(slackbot.Commands{
+		"hello": slackbot.HandlerFunc(func(ctx context.Context, s ...string) []slack.Attachment {
+			return []slack.Attachment{{Color: "good", Text: "General Kenobi!"}}
+		}),
+		"say": slackbot.NewCommandGroup(slackbot.Commands{
+			"foo": slackbot.HandlerFunc(func(ctx context.Context, s ...string) []slack.Attachment {
+				return []slack.Attachment{{Text: "foo"}}
+			}),
+			"bar": slackbot.HandlerFunc(func(ctx context.Context, s ...string) []slack.Attachment {
+				return []slack.Attachment{{Text: "bar"}}
+			}),
+		}),
 	})
 
-	subCmd := &slackbot.Command{}
-	subCmd.Add("foo", func(ctx context.Context, s ...string) []slack.Attachment {
-		return []slack.Attachment{{Text: "foo"}}
-	})
-	subCmd.Add("bar", func(ctx context.Context, s ...string) []slack.Attachment {
-		return []slack.Attachment{{Text: "bar"}}
-	})
-	b.Commands.AddCommand("say", subCmd)
-
-	_ = b.Run(context.Background())
+	fmt.Println("Commands: " + strings.Join(b.GetCommands(), ", "))
+	// Output: Commands: hello, help, say, version
 }

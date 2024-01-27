@@ -9,73 +9,56 @@ import (
 )
 
 func TestCommand(t *testing.T) {
-	var rootCmd Command
-
-	var roomCmd Command
-	roomCmd.Add("set", func(ctx context.Context, args ...string) []slack.Attachment {
-		return []slack.Attachment{{Text: "room set: " + strings.Join(args, ", ")}}
-	})
-	rootCmd.AddCommand("room", &roomCmd)
-
-	rootCmd.Add("list", func(ctx context.Context, args ...string) []slack.Attachment {
-		return []slack.Attachment{{Text: "list"}}
-	})
-
-	rootCmd.Add("set", func(ctx context.Context, args ...string) []slack.Attachment {
-		return []slack.Attachment{{Text: "set: " + strings.Join(args, ", ")}}
-	})
+	handler := func(text string) Handler {
+		return HandlerFunc(func(_ context.Context, args ...string) []slack.Attachment {
+			if len(args) > 0 {
+				text += ": " + strings.Join(args, ", ")
+			}
+			return []slack.Attachment{{Text: text}}
+		})
+	}
 
 	tests := []struct {
-		name string
-		args []string
-		want []slack.Attachment
+		name     string
+		commands Commands
+		args     []string
+		want     []slack.Attachment
 	}{
 		{
-			name: "list",
-			args: []string{"list"},
-			want: []slack.Attachment{{Text: "list"}},
+			name:     "single command",
+			commands: Commands{"foo": handler("foo")},
+			args:     []string{"foo"},
+			want:     []slack.Attachment{{Text: "foo"}},
 		},
 		{
-			name: "set",
-			args: []string{"set", "a=b"},
-			want: []slack.Attachment{{Text: "set: a=b"}},
+			name:     "single command with args",
+			commands: Commands{"foo": handler("foo")},
+			args:     []string{"foo", "a=b"},
+			want:     []slack.Attachment{{Text: "foo: a=b"}},
 		},
 		{
-			name: "set (no args)",
-			args: []string{"set"},
-			want: []slack.Attachment{{Text: "set: "}},
+			name:     "empty",
+			commands: Commands{"foo": handler("foo")},
+			args:     nil,
+			want:     []slack.Attachment{{Color: "bad", Title: "invalid command", Text: "supported commands: foo"}},
 		},
 		{
-			name: "room set",
-			args: []string{"room", "set", "key=val"},
-			want: []slack.Attachment{{Text: "room set: key=val"}},
+			name:     "invalid command",
+			commands: Commands{"foo": handler("foo")},
+			args:     []string{"bar"},
+			want:     []slack.Attachment{{Color: "bad", Title: "invalid command", Text: "supported commands: foo"}},
 		},
 		{
-			name: "invalid command",
-			args: []string{"`invalid"},
-			want: []slack.Attachment{{
-				Color: "bad",
-				Title: "invalid command",
-				Text:  "supported commands: list, room, set",
-			}},
+			name:     "nested command",
+			commands: Commands{"foo": NewCommandGroup(Commands{"bar": handler("bar")})},
+			args:     []string{"foo", "bar"},
+			want:     []slack.Attachment{{Text: "bar"}},
 		},
 		{
-			name: "invalid command with junk",
-			args: []string{"`invalid", "help"},
-			want: []slack.Attachment{{
-				Color: "bad",
-				Title: "invalid command",
-				Text:  "supported commands: list, room, set",
-			}},
-		},
-		{
-			name: "invalid subcommand",
-			args: []string{"room", "invalid"},
-			want: []slack.Attachment{{
-				Color: "bad",
-				Title: "invalid command",
-				Text:  "supported commands: set",
-			}},
+			name:     "invalid nested command",
+			commands: Commands{"foo": NewCommandGroup(Commands{"bar": handler("bar")})},
+			args:     []string{"foo", "foo"},
+			want:     []slack.Attachment{{Color: "bad", Title: "invalid command", Text: "supported commands: bar"}},
 		},
 	}
 
@@ -84,7 +67,10 @@ func TestCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			output := rootCmd.handle(context.Background(), tt.args...)
+			var c CommandGroup
+			c.Add(tt.commands)
+
+			output := c.Handle(context.Background(), tt.args...)
 			assert.Equal(t, tt.want, output)
 
 		})

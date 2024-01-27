@@ -13,10 +13,10 @@ import (
 
 // SlackBot connects to Slack through Slack's Bot integration.
 type SlackBot struct {
-	Commands *Command
-	client   SlackClient
-	name     string
-	logger   *slog.Logger
+	CommandGroup
+	client SlackClient
+	name   string
+	logger *slog.Logger
 }
 
 type SlackClient interface {
@@ -30,12 +30,13 @@ type SlackClient interface {
 // New creates a new slackbot
 func New(slackToken string, options ...Option) *SlackBot {
 	b := &SlackBot{
-		name:     "slackbot",
-		Commands: &Command{},
-		logger:   slog.Default(),
+		name:   "slackbot",
+		logger: slog.Default(),
 	}
-	b.Commands.Add("help", b.doHelp)
-	b.Commands.Add("version", b.doVersion)
+	b.Add(Commands{
+		"help":    HandlerFunc(b.doHelp),
+		"version": HandlerFunc(b.doVersion),
+	})
 
 	for _, option := range options {
 		option(b)
@@ -64,6 +65,25 @@ func (b *SlackBot) Run(ctx context.Context) error {
 	}
 }
 
+// Send posts the provided messages to Slack on the provided channel. If channel is blank,
+// the messages will be posted to all channels that the bot has access to.
+func (b *SlackBot) Send(channel string, attachments []slack.Attachment) error {
+	channelIDs := []string{channel}
+	if channel == "" {
+		var err error
+		if channelIDs, err = b.client.GetChannels(); err != nil {
+			return err
+		}
+	}
+
+	for _, c := range channelIDs {
+		if err := b.client.Send(c, attachments); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEvent) error {
 	if message.Text == "" {
 		return nil
@@ -84,7 +104,7 @@ func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEve
 	}
 
 	b.logger.Debug("running command", "args", args)
-	output := b.Commands.handle(ctx, args...)
+	output := b.Handle(ctx, args...)
 
 	return b.Send(message.Channel, output)
 }
@@ -118,31 +138,12 @@ func tokenizeText(input string) []string {
 	return output
 }
 
-// Send posts the provided messages to Slack on the provided channel. If channel is blank,
-// the messages will be posted to all channels that the bot has access to.
-func (b *SlackBot) Send(channel string, attachments []slack.Attachment) error {
-	channelIDs := []string{channel}
-	if channel == "" {
-		var err error
-		if channelIDs, err = b.client.GetChannels(); err != nil {
-			return err
-		}
-	}
-
-	for _, c := range channelIDs {
-		if err := b.client.Send(c, attachments); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // TODO: this only works for top-level commands. Should this be part of Command functionality?
 func (b *SlackBot) doHelp(_ context.Context, _ ...string) []slack.Attachment {
 	return []slack.Attachment{{
 		Color: "good",
 		Title: "supported commands",
-		Text:  strings.Join(b.Commands.GetCommands(), ", "),
+		Text:  strings.Join(b.GetCommands(), ", "),
 	}}
 }
 

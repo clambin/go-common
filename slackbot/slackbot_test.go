@@ -2,8 +2,8 @@ package slackbot
 
 import (
 	"context"
+	"github.com/clambin/go-common/slackbot/internal/mocks"
 	slack_client "github.com/clambin/go-common/slackbot/internal/slack-client"
-	"github.com/clambin/go-common/slackbot/mocks"
 	"github.com/slack-go/slack"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -147,7 +147,7 @@ func TestSlackBot_processMessage(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
-			name:    "command",
+			name:    "Command",
 			message: &slack.MessageEvent{Msg: slack.Msg{Text: "<@123> foo"}},
 			want:    []slack.Attachment{{Color: "good", Title: "bar", Text: "snafu"}},
 			wantErr: assert.NoError,
@@ -176,9 +176,9 @@ func TestSlackBot_processMessage(t *testing.T) {
 			}
 
 			b := New("some-token", WithName("name"), WithCommands(map[string]Handler{
-				"foo": func(_ context.Context, _ ...string) []slack.Attachment {
+				"foo": HandlerFunc(func(_ context.Context, _ ...string) []slack.Attachment {
 					return []slack.Attachment{{Color: "good", Title: "bar", Text: "snafu"}}
-				},
+				}),
 			}),
 			)
 			b.client = c
@@ -213,18 +213,18 @@ func TestSlackbot_parseCommand(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
-			name:    "no command",
+			name:    "no Command",
 			input:   "<@123>",
 			wantErr: assert.NoError,
 		},
 		{
-			name:    "single command",
+			name:    "single Command",
 			input:   "<@123> version",
 			want:    []string{"version"},
 			wantErr: assert.NoError,
 		},
 		{
-			name:    "command arguments",
+			name:    "Command arguments",
 			input:   "<@123> foo bar snafu",
 			want:    []string{"foo", "bar", "snafu"},
 			wantErr: assert.NoError,

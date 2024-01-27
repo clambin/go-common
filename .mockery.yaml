@@ -7,3 +7,5 @@ packages:
   github.com/clambin/go-common/slackbot:
     interfaces:
       SlackClient:
+        config:
+          dir: "{{.InterfaceDir}}/internal/mocks"
