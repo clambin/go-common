@@ -18,7 +18,7 @@ func WithName(name string) Option {
 // and Command.AddCommandGroup() after creating the SlackBot with New().
 func WithCommands(commands Commands) Option {
 	return func(b *SlackBot) {
-		b.Add(commands)
+		b.Commands.Add(commands)
 	}
 }
 

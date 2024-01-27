@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestCommand(t *testing.T) {
+func TestCommands(t *testing.T) {
 	handler := func(text string) Handler {
 		return HandlerFunc(func(_ context.Context, args ...string) []slack.Attachment {
 			if len(args) > 0 {
@@ -50,13 +50,13 @@ func TestCommand(t *testing.T) {
 		},
 		{
 			name:     "nested command",
-			commands: Commands{"foo": NewCommandGroup(Commands{"bar": handler("bar")})},
+			commands: Commands{"foo": &Commands{"bar": handler("bar")}},
 			args:     []string{"foo", "bar"},
 			want:     []slack.Attachment{{Text: "bar"}},
 		},
 		{
 			name:     "invalid nested command",
-			commands: Commands{"foo": NewCommandGroup(Commands{"bar": handler("bar")})},
+			commands: Commands{"foo": &Commands{"bar": handler("bar")}},
 			args:     []string{"foo", "foo"},
 			want:     []slack.Attachment{{Color: "bad", Title: "invalid command", Text: "supported commands: bar"}},
 		},
@@ -67,12 +67,10 @@ func TestCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var c CommandGroup
+			c := make(Commands)
 			c.Add(tt.commands)
-
 			output := c.Handle(context.Background(), tt.args...)
 			assert.Equal(t, tt.want, output)
-
 		})
 	}
 }

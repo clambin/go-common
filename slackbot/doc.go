@@ -4,7 +4,7 @@
 //	bot := slackbot.New("some-token", slackbot.WithCommands(...)
 //	go bot.Run(context.Background())
 //
-// Once running, the bot will listen for any commands specified and execute them. Slackbot itself implements two commands:
+// Once running, the bot connects to Slack and listens for any commands and execute them. Slackbot itself implements two commands:
 // "version" (which responds with the bot's name; see WithName option) and "help" (which shows all supported commands).
 //
 // Applications can send messages as follows:

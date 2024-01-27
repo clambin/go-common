@@ -13,7 +13,7 @@ import (
 
 // SlackBot connects to Slack through Slack's Bot integration.
 type SlackBot struct {
-	CommandGroup
+	Commands
 	client SlackClient
 	name   string
 	logger *slog.Logger
@@ -33,10 +33,10 @@ func New(slackToken string, options ...Option) *SlackBot {
 		name:   "slackbot",
 		logger: slog.Default(),
 	}
-	b.Add(Commands{
+	b.Commands = Commands{
 		"help":    HandlerFunc(b.doHelp),
 		"version": HandlerFunc(b.doVersion),
-	})
+	}
 
 	for _, option := range options {
 		option(b)
