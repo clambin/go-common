@@ -13,10 +13,10 @@ import (
 
 // SlackBot connects to Slack through Slack's Bot integration.
 type SlackBot struct {
-	Commands
-	client SlackClient
-	name   string
-	logger *slog.Logger
+	client   SlackClient
+	commands Commands
+	name     string
+	logger   *slog.Logger
 }
 
 type SlackClient interface {
@@ -33,7 +33,7 @@ func New(slackToken string, options ...Option) *SlackBot {
 		name:   "slackbot",
 		logger: slog.Default(),
 	}
-	b.Commands = Commands{
+	b.commands = Commands{
 		"help":    HandlerFunc(b.doHelp),
 		"version": HandlerFunc(b.doVersion),
 	}
@@ -104,7 +104,7 @@ func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEve
 	}
 
 	b.logger.Debug("running command", "args", args)
-	output := b.Handle(ctx, args...)
+	output := b.commands.Handle(ctx, args...)
 
 	return b.Send(message.Channel, output)
 }
@@ -149,4 +149,9 @@ func (b *SlackBot) doHelp(_ context.Context, _ ...string) []slack.Attachment {
 
 func (b *SlackBot) doVersion(_ context.Context, _ ...string) []slack.Attachment {
 	return []slack.Attachment{{Color: "good", Text: b.name}}
+}
+
+// GetCommands returns a sorted list of all supported commands.
+func (b *SlackBot) GetCommands() []string {
+	return b.commands.GetCommands()
 }

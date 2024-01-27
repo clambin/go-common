@@ -20,8 +20,7 @@ func Example_simple() {
 }
 
 func Example_nested() {
-	b := slackbot.New("my-slack-token")
-	b.Add(slackbot.Commands{
+	b := slackbot.New("my-slack-token", slackbot.WithCommands(slackbot.Commands{
 		"hello": slackbot.HandlerFunc(func(ctx context.Context, s ...string) []slack.Attachment {
 			return []slack.Attachment{{Color: "good", Text: "General Kenobi!"}}
 		}),
@@ -33,7 +32,7 @@ func Example_nested() {
 				return []slack.Attachment{{Text: "bar"}}
 			}),
 		},
-	})
+	}))
 
 	fmt.Println("Commands: " + strings.Join(b.GetCommands(), ", "))
 	// Output: Commands: hello, help, say, version
