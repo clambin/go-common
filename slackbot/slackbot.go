@@ -3,6 +3,7 @@ package slackbot
 import (
 	"context"
 	"fmt"
+	slackclient "github.com/clambin/go-common/slackbot/internal/slack-client"
 	"github.com/slack-go/slack"
 	"log/slog"
 	"regexp"
@@ -12,39 +13,38 @@ import (
 
 // SlackBot connects to Slack through Slack's Bot integration.
 type SlackBot struct {
-	client        *slackClient
-	name          string
-	commands      map[string]CommandFunc
-	commandRunner *commandRunner
-	logger        *slog.Logger
+	client SlackClient
+	Commands
+	name   string
+	logger *slog.Logger
 }
 
-// CommandFunc signature for command callback functions
-type CommandFunc func(ctx context.Context, args ...string) []slack.Attachment
+type SlackClient interface {
+	Run(context.Context)
+	GetMessage() chan *slack.MessageEvent
+	Send(channelID string, attachments []slack.Attachment) error
+	GetUserID() (string, error)
+	GetChannels() ([]string, error)
+}
 
 // New creates a new slackbot
 func New(slackToken string, options ...Option) *SlackBot {
 	b := &SlackBot{
-		name:     "slackbot",
-		commands: make(map[string]CommandFunc),
-		logger:   slog.Default(),
+		name:   "slackbot",
+		logger: slog.Default(),
 	}
-	b.commands["help"] = b.doHelp
-	b.commands["version"] = b.doVersion
+	b.Commands = Commands{
+		"help":    HandlerFunc(b.doHelp),
+		"version": HandlerFunc(b.doVersion),
+	}
 
 	for _, option := range options {
 		option(b)
 	}
 
-	b.client = newSlackClient(slackToken, b.logger)
-	b.commandRunner = &commandRunner{commands: b.commands}
+	b.client = slackclient.New(slackToken, b.logger.With("component", "slack-client"))
 
 	return b
-}
-
-// Register adds a new command
-func (b *SlackBot) Register(name string, command CommandFunc) {
-	b.commandRunner.Register(name, command)
 }
 
 // Run the slackbot
@@ -65,32 +65,7 @@ func (b *SlackBot) Run(ctx context.Context) error {
 	}
 }
 
-func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEvent) error {
-	b.logger.Debug("message received",
-		"user.id", message.User,
-		"user.name", message.Username,
-		"text", message.Text,
-	)
-
-	command, args, err := b.parseCommand(message.Text)
-	if err != nil {
-		return fmt.Errorf("parse failed: %w", err)
-	}
-
-	if command == "" {
-		return nil
-	}
-
-	b.logger.Debug("running command", "command", command, "args", args)
-	output := b.commandRunner.Do(ctx, command, args...)
-
-	err = b.Send(message.Channel, output)
-	if err != nil {
-		err = fmt.Errorf("post to Slack failed: %w", err)
-	}
-	return err
-}
-
+// Send posts attachments to Slack on the provided channel. If channel is blank, Send posts to  all channels that the bot has access to.
 func (b *SlackBot) Send(channel string, attachments []slack.Attachment) error {
 	channelIDs := []string{channel}
 	if channel == "" {
@@ -108,16 +83,44 @@ func (b *SlackBot) Send(channel string, attachments []slack.Attachment) error {
 	return nil
 }
 
-func (b *SlackBot) parseCommand(input string) (string, []string, error) {
+func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEvent) error {
+	if message.Text == "" {
+		return nil
+	}
+	b.logger.Debug("message received",
+		"user.id", message.User,
+		"user.name", message.Username,
+		"text", message.Text,
+	)
+
+	args, err := b.parseCommand(message.Text)
+	if err != nil {
+		return fmt.Errorf("parse: %w", err)
+	}
+
+	if len(args) == 0 {
+		return nil
+	}
+
+	b.logger.Debug("running command", "args", args)
+	output := b.Commands.Handle(ctx, args...)
+
+	return b.Send(message.Channel, output)
+}
+
+func (b *SlackBot) parseCommand(input string) ([]string, error) {
 	userID, err := b.client.GetUserID()
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 	words := tokenizeText(input)
 	if len(words) == 0 || words[0] != "<@"+userID+">" {
-		return "", nil, nil
+		return nil, nil
 	}
-	return words[1], words[2:], nil
+	if len(words) == 1 {
+		return nil, nil
+	}
+	return words[1:], nil
 }
 
 func tokenizeText(input string) []string {
@@ -134,11 +137,12 @@ func tokenizeText(input string) []string {
 	return output
 }
 
+// TODO: this only works for top-level commands. Should this be part of Command functionality?
 func (b *SlackBot) doHelp(_ context.Context, _ ...string) []slack.Attachment {
 	return []slack.Attachment{{
 		Color: "good",
 		Title: "supported commands",
-		Text:  strings.Join(b.commandRunner.GetCommands(), ", "),
+		Text:  strings.Join(b.GetCommands(), ", "),
 	}}
 }
 
