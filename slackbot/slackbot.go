@@ -13,10 +13,10 @@ import (
 
 // SlackBot connects to Slack through Slack's Bot integration.
 type SlackBot struct {
-	client   SlackClient
-	commands Commands
-	name     string
-	logger   *slog.Logger
+	client SlackClient
+	Commands
+	name   string
+	logger *slog.Logger
 }
 
 type SlackClient interface {
@@ -33,7 +33,7 @@ func New(slackToken string, options ...Option) *SlackBot {
 		name:   "slackbot",
 		logger: slog.Default(),
 	}
-	b.commands = Commands{
+	b.Commands = Commands{
 		"help":    HandlerFunc(b.doHelp),
 		"version": HandlerFunc(b.doVersion),
 	}
@@ -65,8 +65,7 @@ func (b *SlackBot) Run(ctx context.Context) error {
 	}
 }
 
-// Send posts the provided messages to Slack on the provided channel. If channel is blank,
-// the messages will be posted to all channels that the bot has access to.
+// Send posts attachments to Slack on the provided channel. If channel is blank, Send posts to  all channels that the bot has access to.
 func (b *SlackBot) Send(channel string, attachments []slack.Attachment) error {
 	channelIDs := []string{channel}
 	if channel == "" {
@@ -104,7 +103,7 @@ func (b *SlackBot) processMessage(ctx context.Context, message *slack.MessageEve
 	}
 
 	b.logger.Debug("running command", "args", args)
-	output := b.commands.Handle(ctx, args...)
+	output := b.Commands.Handle(ctx, args...)
 
 	return b.Send(message.Channel, output)
 }
@@ -149,9 +148,4 @@ func (b *SlackBot) doHelp(_ context.Context, _ ...string) []slack.Attachment {
 
 func (b *SlackBot) doVersion(_ context.Context, _ ...string) []slack.Attachment {
 	return []slack.Attachment{{Color: "good", Text: b.name}}
-}
-
-// GetCommands returns a sorted list of all supported commands.
-func (b *SlackBot) GetCommands() []string {
-	return b.commands.GetCommands()
 }

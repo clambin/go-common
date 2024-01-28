@@ -31,13 +31,13 @@ var _ Handler = &Commands{}
 //	"bar"    -> Commands
 //	            "snafu"    -> handler
 //
-// This will support the commands "foo" and "bar snafu"
+// This creates the commands "foo" and "bar snafu"
 type Commands map[string]Handler
 
 // Handle processes the incoming command. The first arg is considered the verb. If it matches a supported command, its
 // corresponding handler is called, passing the remaining arguments.
 //
-// If the verb is not supported, An attachment is reported will all supported commands
+// If the verb is not supported, an attachment is returned with all supported commands.
 func (c Commands) Handle(ctx context.Context, args ...string) []slack.Attachment {
 	if subCmd, subArgs := split(args...); subCmd != "" {
 		if subCommand, ok := c[subCmd]; ok {
