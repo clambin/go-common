@@ -3,22 +3,27 @@ package slackbot
 import (
 	"context"
 	"github.com/clambin/go-common/slackbot/internal/mocks"
-	slack_client "github.com/clambin/go-common/slackbot/internal/slack-client"
+	slackclient "github.com/clambin/go-common/slackbot/internal/slack-client"
 	"github.com/slack-go/slack"
 	"github.com/stretchr/testify/assert"
 	"testing"
-	"time"
 )
 
 func TestSlackBot_Run(t *testing.T) {
-
 	ctx, cancel := context.WithCancel(context.Background())
 	ev := make(chan *slack.MessageEvent)
+	sentCh := make(chan struct{})
 
 	f := mocks.NewSlackClient(t)
 	f.EXPECT().GetMessage().Return(ev)
 	f.EXPECT().Run(ctx)
 	f.EXPECT().GetUserID().Return("123", nil)
+	f.EXPECT().GetChannels().Return([]string{"A"}, nil)
+	f.EXPECT().Send("A", []slack.Attachment{{Color: "good", Title: "supported commands", Text: "help, version"}}).
+		RunAndReturn(func(s string, attachments []slack.Attachment) error {
+			sentCh <- struct{}{}
+			return nil
+		})
 
 	b := New("some-token")
 	b.client = f
@@ -28,11 +33,8 @@ func TestSlackBot_Run(t *testing.T) {
 		ch <- b.Run(ctx)
 	}()
 
-	ev <- &slack.MessageEvent{
-		Msg: slack.Msg{Text: "help"},
-	}
-
-	time.Sleep(time.Second)
+	ev <- &slack.MessageEvent{Msg: slack.Msg{Text: "<@123> help"}}
+	<-sentCh
 
 	cancel()
 	assert.NoError(t, <-ch)
@@ -74,7 +76,7 @@ func TestSlackBot_Send(t *testing.T) {
 		{
 			name:        "GetChannels fails",
 			channel:     "",
-			channelsErr: slack_client.ErrNotConnected,
+			channelsErr: slackclient.ErrNotConnected,
 			message: []slack.Attachment{{
 				Color: "good",
 				Title: "hello",
@@ -92,7 +94,7 @@ func TestSlackBot_Send(t *testing.T) {
 				Title: "hello",
 				Text:  "world",
 			}},
-			sendErr: slack_client.ErrNotConnected,
+			sendErr: slackclient.ErrNotConnected,
 			wantErr: assert.Error,
 		},
 	}
@@ -155,7 +157,7 @@ func TestSlackBot_processMessage(t *testing.T) {
 		{
 			name:      "error",
 			message:   &slack.MessageEvent{Msg: slack.Msg{Text: "<@123> version"}},
-			userIDErr: slack_client.ErrNotConnected,
+			userIDErr: slackclient.ErrNotConnected,
 			//want:      []slack.Attachment{{Color: "good", Text: "name"}},
 			wantErr: assert.Error,
 		},
@@ -200,7 +202,7 @@ func TestSlackbot_parseCommand(t *testing.T) {
 		{
 			name:        "not connected",
 			input:       "<@123>",
-			userIdError: slack_client.ErrNotConnected,
+			userIdError: slackclient.ErrNotConnected,
 			wantErr:     assert.Error,
 		},
 		{
