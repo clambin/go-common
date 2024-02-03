@@ -2,7 +2,7 @@ package set_test
 
 import (
 	"github.com/clambin/go-common/set"
-	"github.com/stretchr/testify/assert"
+	"reflect"
 	"testing"
 )
 
@@ -19,7 +19,10 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, set.New(tt.input...).ListOrdered())
+			s := set.New(tt.input...).ListOrdered()
+			if !reflect.DeepEqual(s, tt.expected) {
+				t.Errorf("expected: %v, got %v", tt.expected, s)
+			}
 		})
 	}
 }
@@ -39,7 +42,9 @@ func TestSet_Add(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.start.Add(tt.add)
-			assert.Equal(t, tt.expected, tt.start)
+			if !reflect.DeepEqual(tt.start, tt.expected) {
+				t.Errorf("expected: %v, got %v", tt.expected, tt.start)
+			}
 		})
 	}
 }
@@ -59,7 +64,9 @@ func TestSet_Add2(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.start.Add(tt.add...)
-			assert.Equal(t, tt.expected, tt.start)
+			if !reflect.DeepEqual(tt.start, tt.expected) {
+				t.Errorf("expected: %v, got %v", tt.expected, tt.start)
+			}
 		})
 	}
 }
@@ -80,7 +87,9 @@ func TestSet_Remove(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.start.Remove(tt.remove)
-			assert.Equal(t, tt.expected, tt.start)
+			if !reflect.DeepEqual(tt.start, tt.expected) {
+				t.Errorf("expected: %v, got %v", tt.expected, tt.start)
+			}
 		})
 	}
 }
@@ -99,7 +108,10 @@ func TestSet_Contains(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.input.Contains(tt.has))
+			c := tt.input.Contains(tt.has)
+			if c != tt.expected {
+				t.Errorf("expected: %v, got %v", tt.expected, c)
+			}
 		})
 	}
 }
@@ -117,7 +129,10 @@ func TestSet_List(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.input.ListOrdered())
+			s := tt.input.ListOrdered()
+			if !reflect.DeepEqual(s, tt.expected) {
+				t.Errorf("expected: %v, got %v", tt.expected, s)
+			}
 		})
 	}
 }
@@ -138,7 +153,10 @@ func TestSet_Equals(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.setA.Equals(tt.setB))
+			e := tt.setA.Equals(tt.setB)
+			if e != tt.expected {
+				t.Errorf("expected: %v, got %v", tt.expected, e)
+			}
 		})
 	}
 }
@@ -155,7 +173,10 @@ func TestSet_Copy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.input.Copy())
+			c := tt.input.Copy()
+			if !reflect.DeepEqual(tt.expected, c) {
+				t.Errorf("expected: %v, got %v", tt.expected, c)
+			}
 		})
 	}
 }
@@ -175,7 +196,10 @@ func TestUnion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, set.Union(tt.setA, tt.setB))
+			u := set.Union(tt.setA, tt.setB)
+			if !reflect.DeepEqual(tt.expected, u) {
+				t.Errorf("expected: %v, got %v", tt.expected, u)
+			}
 		})
 	}
 }
@@ -196,7 +220,10 @@ func TestIntersection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, set.Intersection(tt.setA, tt.setB))
+			i := set.Intersection(tt.setA, tt.setB)
+			if !reflect.DeepEqual(tt.expected, i) {
+				t.Errorf("expected: %v, got %v", tt.expected, i)
+			}
 		})
 	}
 }
@@ -218,7 +245,10 @@ func TestDifference(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, set.Difference(tt.setA, tt.setB))
+			d := set.Difference(tt.setA, tt.setB)
+			if !reflect.DeepEqual(tt.expected, d) {
+				t.Errorf("expected: %v, got %v", tt.expected, d)
+			}
 		})
 	}
 }
