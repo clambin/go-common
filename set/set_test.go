@@ -44,6 +44,26 @@ func TestSet_Add(t *testing.T) {
 	}
 }
 
+func TestSet_Add2(t *testing.T) {
+	tests := []struct {
+		name     string
+		start    set.Set[string]
+		add      []string
+		expected set.Set[string]
+	}{
+		{name: "empty", start: set.New[string](), add: []string{"A"}, expected: set.New("A")},
+		{name: "add", start: set.New("A"), add: []string{"B"}, expected: set.New("A", "B")},
+		{name: "duplicate", start: set.New("A"), add: []string{"A"}, expected: set.New("A")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.start.Add(tt.add...)
+			assert.Equal(t, tt.expected, tt.start)
+		})
+	}
+}
+
 func TestSet_Remove(t *testing.T) {
 	tests := []struct {
 		name     string

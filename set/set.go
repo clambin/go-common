@@ -9,13 +9,17 @@ import (
 type Set[T cmp.Ordered] map[T]struct{}
 
 // Add adds value to the set
-func (s Set[T]) Add(value T) {
-	s[value] = struct{}{}
+func (s Set[T]) Add(value ...T) {
+	for i := range value {
+		s[value[i]] = struct{}{}
+	}
 }
 
 // Remove deletes value from the set, if present
-func (s Set[T]) Remove(value T) {
-	delete(s, value)
+func (s Set[T]) Remove(value ...T) {
+	for i := range value {
+		delete(s, value[i])
+	}
 }
 
 // Contains returns true if the set contains value
