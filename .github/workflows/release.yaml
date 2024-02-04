@@ -41,6 +41,7 @@ jobs:
         if: matrix.go-version == '1.21'
         with:
           file: ${{ matrix.module}}/coverage.txt
+          token: ${{ secrets.CODECOV_TOKEN }}
   release:
     runs-on: ubuntu-latest
     needs:
