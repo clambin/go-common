@@ -2,6 +2,7 @@ package set
 
 import (
 	"cmp"
+	"maps"
 	"slices"
 )
 
@@ -30,7 +31,7 @@ func (s Set[T]) Contains(value T) bool {
 
 // List returns all values present in the set. Order is not guaranteed.  If ListOrdered() if required.
 func (s Set[T]) List() []T {
-	var values []T
+	values := make([]T, 0, len(s))
 	for k := range s {
 		values = append(values, k)
 	}
@@ -61,11 +62,9 @@ func (s Set[T]) Equals(other Set[T]) bool {
 
 // Copy returns a copy of the set
 func (s Set[T]) Copy() Set[T] {
-	output := make(map[T]struct{})
-	for key := range s {
-		output[key] = struct{}{}
-	}
-	return output
+	dest := make(Set[T], len(s))
+	maps.Copy(dest, s)
+	return dest
 }
 
 // New creates a new set containing the optional values
@@ -76,7 +75,7 @@ func New[T cmp.Ordered](values ...T) Set[T] {
 // Create creates a new set containing the optional values
 // Deprecated: use New() instead.
 func Create[T cmp.Ordered](values ...T) Set[T] {
-	s := make(Set[T])
+	s := make(Set[T], len(values))
 	for _, value := range values {
 		s[value] = struct{}{}
 	}

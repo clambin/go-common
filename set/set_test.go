@@ -12,7 +12,7 @@ func TestNew(t *testing.T) {
 		input    []string
 		expected []string
 	}{
-		{name: "empty"},
+		{name: "empty", expected: []string{}},
 		{name: "not empty", input: []string{"A", "B"}, expected: []string{"A", "B"}},
 		{name: "duplicates", input: []string{"A", "B", "A"}, expected: []string{"A", "B"}},
 	}
@@ -113,7 +113,7 @@ func TestSet_List(t *testing.T) {
 		input    set.Set[string]
 		expected []string
 	}{
-		{name: "empty", input: set.New[string](), expected: nil},
+		{name: "empty", input: set.New[string](), expected: []string{}},
 		{name: "single", input: set.New("A"), expected: []string{"A"}},
 		{name: "multiple", input: set.New("B", "A"), expected: []string{"A", "B"}},
 	}
@@ -230,5 +230,18 @@ func checkEqual[T any](t *testing.T, expected T, got T) {
 	t.Helper()
 	if !reflect.DeepEqual(expected, got) {
 		t.Errorf("expected: %v, got: %v", expected, got)
+	}
+}
+
+func BenchmarkSet_List(b *testing.B) {
+	const setSize = 10000
+	data := make([]int, setSize)
+	for i := 0; i < setSize; i++ {
+		data[i] = i
+	}
+	bigSet := set.New(data...)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = bigSet.List()
 	}
 }
