@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"maps"
 	"runtime"
 	"sync"
 	"time"
@@ -123,9 +124,7 @@ func (c *realCache[K, V]) scrub() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	for key, e := range c.values {
-		if time.Now().After(e.expiry) {
-			delete(c.values, key)
-		}
-	}
+	maps.DeleteFunc(c.values, func(k K, e entry[V]) bool {
+		return time.Now().After(e.expiry)
+	})
 }
