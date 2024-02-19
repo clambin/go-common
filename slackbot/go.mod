@@ -3,7 +3,7 @@ module github.com/clambin/go-common/slackbot
 go 1.21
 
 require (
-	github.com/slack-go/slack v0.12.3
+	github.com/slack-go/slack v0.12.4
 	github.com/stretchr/testify v1.8.4
 )
 
