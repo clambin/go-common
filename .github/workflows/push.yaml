@@ -30,7 +30,7 @@ jobs:
           cd ${{ matrix.module }}
           go test ./... -race -coverprofile=coverage.txt -covermode=atomic
       - uses: codecov/codecov-action@v4
-        if: matrix.go-version == '1.21'
+        if: matrix.go-version == '1.22'
         with:
           file: ${{ matrix.module}}/coverage.txt
           token: ${{ secrets.CODECOV_TOKEN }}
