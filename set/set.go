@@ -9,6 +9,21 @@ import (
 // Set holds a set of unique values
 type Set[T cmp.Ordered] map[T]struct{}
 
+// New creates a new set containing the optional values
+func New[T cmp.Ordered](values ...T) Set[T] {
+	s := make(Set[T], len(values))
+	for _, value := range values {
+		s[value] = struct{}{}
+	}
+	return s
+}
+
+// Create creates a new set containing the optional values
+// Deprecated: use New() instead.
+func Create[T cmp.Ordered](values ...T) Set[T] {
+	return New(values...)
+}
+
 // Add adds value to the set
 func (s Set[T]) Add(value ...T) {
 	for i := range value {
@@ -60,26 +75,18 @@ func (s Set[T]) Equals(other Set[T]) bool {
 	return true
 }
 
-// Copy returns a copy of the set
-func (s Set[T]) Copy() Set[T] {
-	dest := make(Set[T], len(s))
-	maps.Copy(dest, s)
-	return dest
-}
-
-// New creates a new set containing the optional values
-func New[T cmp.Ordered](values ...T) Set[T] {
-	return Create(values...)
-}
-
-// Create creates a new set containing the optional values
-// Deprecated: use New() instead.
-func Create[T cmp.Ordered](values ...T) Set[T] {
-	s := make(Set[T], len(values))
-	for _, value := range values {
-		s[value] = struct{}{}
+// Clone returns a copy of the set
+func (s Set[T]) Clone() Set[T] {
+	if s == nil {
+		return New[T]()
 	}
-	return s
+	return maps.Clone(s)
+}
+
+// Copy returns a copy of the set
+// Deprecated: use Clone() instead.
+func (s Set[T]) Copy() Set[T] {
+	return s.Clone()
 }
 
 // Union returns a new set containing the values from setA and setB

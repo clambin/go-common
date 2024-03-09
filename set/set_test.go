@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestNew(t *testing.T) {
+func TestCreate(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    []string
@@ -19,7 +19,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := set.New(tt.input...).ListOrdered()
+			s := set.Create(tt.input...).ListOrdered()
 			if !reflect.DeepEqual(s, tt.expected) {
 				t.Errorf("expected: %v, got %v", tt.expected, s)
 			}
