@@ -50,24 +50,21 @@ func TestManager_Run_Twice(t *testing.T) {
 	m := New(w1, w2)
 
 	ctx, cancel := context.WithCancel(context.Background())
+
 	ch := make(chan error)
 	go func() {
 		ch <- m.Run(ctx)
 	}()
-
-	ctx2, cancel2 := context.WithCancel(context.Background())
 	go func() {
-		ch <- m.Run(ctx2)
+		ch <- m.Run(ctx)
 	}()
 
 	require.Eventually(t, func() bool { return w1.getRunCounter() > 0 }, time.Second, time.Millisecond)
 	require.Eventually(t, func() bool { return w2.getRunCounter() > 0 }, time.Second, time.Millisecond)
 
-	cancel2()
 	cancel()
-	//err := errors.Join(<-ch, <-ch)
-	//require.ErrorIs(t, err, ErrAlreadyRunning)
-	require.True(t, errors.Is(<-ch, ErrAlreadyRunning) || errors.Is(<-ch, ErrAlreadyRunning))
+	err := errors.Join(<-ch, <-ch)
+	require.ErrorIs(t, err, ErrAlreadyRunning)
 }
 
 func TestManager_Run_Timeout(t *testing.T) {
@@ -89,15 +86,19 @@ type waiter struct {
 }
 
 func (w *waiter) Run(ctx context.Context) error {
-	w.lock.Lock()
-	w.running = true
-	w.runCounter++
-	w.lock.Unlock()
+	w.setRunning(true)
 	<-ctx.Done()
-	w.lock.Lock()
-	w.running = false
-	w.lock.Unlock()
+	w.setRunning(false)
 	return nil
+}
+
+func (w *waiter) setRunning(running bool) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	w.running = running
+	if running {
+		w.runCounter++
+	}
 }
 
 func (w *waiter) getRunCounter() int {

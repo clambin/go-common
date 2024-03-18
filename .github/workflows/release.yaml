@@ -21,6 +21,7 @@ jobs:
           - '1.22'
         module:
           - cache
+          - http
           - httpclient
           - httpserver
           - set
