@@ -89,27 +89,27 @@ func (s Set[T]) Copy() Set[T] {
 	return s.Clone()
 }
 
-// Union returns a new set containing the values from setA and setB
+// Union returns a new set containing all values from setA and setB
 func Union[T cmp.Ordered](setA, setB Set[T]) Set[T] {
-	union := setA.Copy()
+	union := setA.Clone()
 	for key := range setB {
 		union[key] = struct{}{}
 	}
 	return union
 }
 
-// Intersection returns a new set containing the values that exist in both setA and setB
+// Intersection returns a new set containing the common values between setA and setB
 func Intersection[T cmp.Ordered](setA, setB Set[T]) Set[T] {
 	intersection := make(Set[T])
 	for key := range setA {
-		if setB.Contains(key) {
+		if _, ok := setB[key]; ok {
 			intersection[key] = struct{}{}
 		}
 	}
 	return intersection
 }
 
-// Difference returns a new set holding the values from setA that don't exist in setB
+// Difference returns a new set containing the values from setA that don't exist in setB
 func Difference[T cmp.Ordered](setA, setB Set[T]) Set[T] {
 	difference := make(Set[T])
 	for key := range setA {
