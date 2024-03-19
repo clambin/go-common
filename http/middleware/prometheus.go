@@ -142,6 +142,21 @@ func (d DefaultServerHistogramMetrics) Collect(ch chan<- prometheus.Metric) {
 	d.duration.Collect(ch)
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+var _ ServerMetrics = NoMetrics{}
+
+type NoMetrics struct{}
+
+func (n NoMetrics) Measure(_ *http.Request, _ int, _ time.Duration) {
+}
+
+func (n NoMetrics) Describe(_ chan<- *prometheus.Desc) {
+}
+
+func (n NoMetrics) Collect(_ chan<- prometheus.Metric) {
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 type loggingResponseWriter struct {
