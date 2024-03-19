@@ -31,7 +31,7 @@ func TestWithCache(t *testing.T) {
 
 func TestWithInstrumentedCache(t *testing.T) {
 	s := server{}
-	m := roundtripper.NewCacheMetrics("foo", "bar")
+	m := roundtripper.NewCacheMetrics("foo", "bar", "snafu")
 	r := roundtripper.New(
 		roundtripper.WithInstrumentedCache(roundtripper.DefaultCacheTable, 0, 0, m),
 		roundtripper.WithRoundTripper(&s),
@@ -49,10 +49,10 @@ func TestWithInstrumentedCache(t *testing.T) {
 	assert.NoError(t, testutil.CollectAndCompare(m, bytes.NewBufferString(`
 # HELP foo_bar_api_cache_hit_total Number of times the cache was used
 # TYPE foo_bar_api_cache_hit_total counter
-foo_bar_api_cache_hit_total{method="GET",path="/"} 1
+foo_bar_api_cache_hit_total{application="snafu",method="GET",path="/"} 1
 # HELP foo_bar_api_cache_total Number of times the cache was consulted
 # TYPE foo_bar_api_cache_total counter
-foo_bar_api_cache_total{method="GET",path="/"} 2
+foo_bar_api_cache_total{application="snafu",method="GET",path="/"} 2
 `)))
 }
 

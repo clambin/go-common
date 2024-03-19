@@ -78,15 +78,21 @@ type defaultCacheMetrics struct {
 	hits  *prometheus.CounterVec // measures the number of times the cache was used
 }
 
-func NewCacheMetrics(namespace, subsystem string) CacheMetrics {
+func NewCacheMetrics(namespace, subsystem, application string) CacheMetrics {
+	var constLabels map[string]string
+	if application != "" {
+		constLabels = map[string]string{"application": application}
+	}
 	return &defaultCacheMetrics{
 		cache: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: prometheus.BuildFQName(namespace, subsystem, "api_cache_total"),
-			Help: "Number of times the cache was consulted",
+			Name:        prometheus.BuildFQName(namespace, subsystem, "api_cache_total"),
+			Help:        "Number of times the cache was consulted",
+			ConstLabels: constLabels,
 		}, []string{"path", "method"}),
 		hits: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: prometheus.BuildFQName(namespace, subsystem, "api_cache_hit_total"),
-			Help: "Number of times the cache was used",
+			Name:        prometheus.BuildFQName(namespace, subsystem, "api_cache_hit_total"),
+			Help:        "Number of times the cache was used",
+			ConstLabels: constLabels,
 		}, []string{"path", "method"}),
 	}
 }
