@@ -11,32 +11,71 @@ import (
 )
 
 func TestWithInstrumentedRoundTripper(t *testing.T) {
-	s := server{}
-	m := roundtripper.NewDefaultRoundTripMetrics("foo", "bar")
-	r := roundtripper.WithInstrumentedRoundTripper(m)(&s)
+	tests := []struct {
+		name        string
+		pass        bool
+		application string
+		want        string
+	}{
+		{
+			name: "success",
+			pass: true,
+			want: `
+# HELP foo_bar_http_requests_total total number of http requests
+# TYPE foo_bar_http_requests_total counter
+foo_bar_http_requests_total{code="200",method="GET",path="/foo"} 1
+`,
+		},
+		{
+			name:        "success - with application",
+			pass:        true,
+			application: "snafu",
+			want: `
+# HELP foo_bar_http_requests_total total number of http requests
+# TYPE foo_bar_http_requests_total counter
+foo_bar_http_requests_total{application="snafu",code="200",method="GET",path="/foo"} 1
+`,
+		},
+		{
+			name: "failure",
+			pass: false,
+			want: `
+# HELP foo_bar_http_requests_total total number of http requests
+# TYPE foo_bar_http_requests_total counter
+foo_bar_http_requests_total{code="",method="GET",path="/foo"} 1
+`,
+		},
+		{
+			name:        "failure - with application",
+			pass:        false,
+			application: "snafu",
+			want: `
+# HELP foo_bar_http_requests_total total number of http requests
+# TYPE foo_bar_http_requests_total counter
+foo_bar_http_requests_total{application="snafu",code="",method="GET",path="/foo"} 1
+`,
+		},
+	}
 
-	req, _ := http.NewRequest(http.MethodGet, "/foo", nil)
-	_, err := r.RoundTrip(req)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := server{fail: !tt.pass}
+			m := roundtripper.NewDefaultRoundTripMetrics("foo", "bar", tt.application)
+			r := roundtripper.New(
+				roundtripper.WithInstrumentedRoundTripper(m),
+				roundtripper.WithRoundTripper(&s),
+			)
 
-	assert.NoError(t, testutil.CollectAndCompare(m, strings.NewReader(`
-# HELP foo_bar_requests_total total number of requests
-# TYPE foo_bar_requests_total counter
-foo_bar_requests_total{code="200",method="GET",path="/foo"} 1
-`), "foo_bar_requests_total"))
-	assert.Equal(t, 1, testutil.CollectAndCount(m, "foo_bar_latency"))
+			req, _ := http.NewRequest(http.MethodGet, "/foo", nil)
+			_, err := r.RoundTrip(req)
+			if tt.pass {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
 
-	s.fail = true
-
-	req, _ = http.NewRequest(http.MethodGet, "/foo", nil)
-	_, err = r.RoundTrip(req)
-	require.Error(t, err)
-
-	assert.NoError(t, testutil.CollectAndCompare(m, strings.NewReader(`
-# HELP foo_bar_requests_total total number of requests
-# TYPE foo_bar_requests_total counter
-foo_bar_requests_total{code="",method="GET",path="/foo"} 1
-foo_bar_requests_total{code="200",method="GET",path="/foo"} 1
-`), "foo_bar_requests_total"))
-	assert.Equal(t, 2, testutil.CollectAndCount(m, "foo_bar_latency"))
+			assert.NoError(t, testutil.CollectAndCompare(m, strings.NewReader(tt.want), "foo_bar_http_requests_total"))
+			assert.Equal(t, 1, testutil.CollectAndCount(m, "foo_bar_http_request_duration_seconds"))
+		})
+	}
 }
