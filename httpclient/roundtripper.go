@@ -40,6 +40,8 @@ type RoundTripper struct {
 //
 // If no options are provided, or the final option isn't WithRoundTripper, the http call is done using
 // http.DefaultTransport.
+//
+// deprecated: use github.com/clambin/go-common/http/roundtripper instead
 func NewRoundTripper(options ...Option) *RoundTripper {
 	r := http.DefaultTransport
 	var c []prometheus.Collector
