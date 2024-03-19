@@ -100,9 +100,13 @@ func NewCacheMetrics(namespace, subsystem, application string) CacheMetrics {
 var _ prometheus.Collector = &defaultCacheMetrics{}
 
 func (m *defaultCacheMetrics) Measure(r *http.Request, hit bool) {
-	m.cache.WithLabelValues(r.URL.Path, r.Method).Inc()
+	path := r.URL.Path
+	if path == "" {
+		path = "/"
+	}
+	m.cache.WithLabelValues(path, r.Method).Inc()
 	if hit {
-		m.hits.WithLabelValues(r.URL.Path, r.Method).Inc()
+		m.hits.WithLabelValues(path, r.Method).Inc()
 	}
 }
 

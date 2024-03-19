@@ -88,8 +88,12 @@ func (d *DefaultRoundTripMetrics) Measure(req *http.Request, resp *http.Response
 	if err == nil {
 		code = strconv.Itoa(resp.StatusCode)
 	}
-	d.requests.WithLabelValues(req.Method, req.URL.Path, code).Add(1)
-	d.duration.WithLabelValues(req.Method, req.URL.Path, code).Observe(duration.Seconds())
+	path := req.URL.Path
+	if path == "" {
+		path = "/"
+	}
+	d.requests.WithLabelValues(req.Method, path, code).Add(1)
+	d.duration.WithLabelValues(req.Method, path, code).Observe(duration.Seconds())
 }
 
 // Describe implements the [prometheus.Collector] interface.
