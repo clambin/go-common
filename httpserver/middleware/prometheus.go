@@ -8,6 +8,8 @@ import (
 )
 
 // PrometheusMetrics implements a net/http middleware that records HTTP request statistics as Prometheus metrics
+//
+// deprecated: moved to github.com/clambin/go-common/http/middleware
 type PrometheusMetrics struct {
 	requests *prometheus.CounterVec
 	duration durationMetric
@@ -27,6 +29,8 @@ var _ prometheus.Collector = &PrometheusMetrics{}
 //
 //	m := NewPrometheusMetrics(options)
 //	prometheus.MustRegister(m)
+//
+// deprecated: moved to github.com/clambin/go-common/http/middleware
 func NewPrometheusMetrics(o PrometheusMetricsOptions) *PrometheusMetrics {
 	return o.makeMetrics()
 }

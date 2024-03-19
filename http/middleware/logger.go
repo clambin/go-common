@@ -7,8 +7,6 @@ import (
 )
 
 // RequestLogger logs incoming HTTP requests.
-//
-// deprecated: moved to github.com/clambin/go-common/http/middleware
 func RequestLogger(logger *slog.Logger, logLevel slog.Level, formatter RequestLogFormatter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {

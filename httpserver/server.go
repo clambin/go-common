@@ -11,6 +11,8 @@ import (
 )
 
 // Server implements a configurable HTTP Server. See the different WithXXX structs for available options.
+//
+// deprecated: no longer in use
 type Server struct {
 	addr                string
 	handlers            []Handler
@@ -32,6 +34,8 @@ type Handler struct {
 }
 
 // New returns a Server with the specified options
+//
+// deprecated: no longer in use
 func New(options ...Option) (*Server, error) {
 	var s Server
 	for _, o := range options {

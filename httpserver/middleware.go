@@ -7,6 +7,8 @@ import (
 
 // MethodFilter only passes on the request if the http request's methos matches once of the methods.
 // If no methods are provided, MethodFilter defaults to http.MethodGet.
+//
+// deprecated: no longer needed as of Go 1.22
 func MethodFilter(methods ...string) func(next http.Handler) http.Handler {
 	if len(methods) == 0 {
 		methods = []string{http.MethodGet}
