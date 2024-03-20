@@ -36,31 +36,30 @@ func (i *instrumentedRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 // RoundTripMetrics measure metrics for each request processed by an instrumented roundtripper, created by WithInstrumentedRoundTripper.
 //
 // To create a custom RoundTripMetrics, implement the Measure method, which measures & records the necessary Prometheus metrics,
-// and implements the [prometheus.Collector] interface. See [DefaultRoundTripMetrics] for an example.
+// and implements the [prometheus.Collector] interface. See [defaultRoundTripMetrics] for an example.
 type RoundTripMetrics interface {
 	Measure(req *http.Request, resp *http.Response, err error, duration time.Duration)
 	prometheus.Collector
 }
 
-var _ RoundTripMetrics = &DefaultRoundTripMetrics{}
+var _ RoundTripMetrics = &defaultRoundTripMetrics{}
 
-// DefaultRoundTripMetrics measure the request's total count and duration (by method, path and status code)
-type DefaultRoundTripMetrics struct {
+type defaultRoundTripMetrics struct {
 	requests *prometheus.CounterVec
 	duration *prometheus.SummaryVec
 }
 
-// NewDefaultRoundTripMetrics returns a new DefaultRoundTripMetrics. The caller must register the returned metrics with a Prometheus registry.
+// NewDefaultRoundTripMetrics returns a new defaultRoundTripMetrics. The caller must register the returned metrics with a Prometheus registry.
 //
 // namespace and subsystem are prepended to the metric name.
 // application is added to the metric as a label "application". If application is empty, the label is not added.
-func NewDefaultRoundTripMetrics(namespace, subsystem, application string) *DefaultRoundTripMetrics {
+func NewDefaultRoundTripMetrics(namespace, subsystem, application string) *defaultRoundTripMetrics {
 	var constLabels map[string]string
 	if application != "" {
 		constLabels = map[string]string{"application": application}
 	}
 
-	return &DefaultRoundTripMetrics{
+	return &defaultRoundTripMetrics{
 		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace:   namespace,
 			Subsystem:   subsystem,
@@ -83,7 +82,7 @@ func NewDefaultRoundTripMetrics(namespace, subsystem, application string) *Defau
 }
 
 // Measure measures the total number of requests and the duration of the current request.
-func (d *DefaultRoundTripMetrics) Measure(req *http.Request, resp *http.Response, err error, duration time.Duration) {
+func (d *defaultRoundTripMetrics) Measure(req *http.Request, resp *http.Response, err error, duration time.Duration) {
 	var code string
 	if err == nil {
 		code = strconv.Itoa(resp.StatusCode)
@@ -97,13 +96,13 @@ func (d *DefaultRoundTripMetrics) Measure(req *http.Request, resp *http.Response
 }
 
 // Describe implements the [prometheus.Collector] interface.
-func (d *DefaultRoundTripMetrics) Describe(ch chan<- *prometheus.Desc) {
+func (d *defaultRoundTripMetrics) Describe(ch chan<- *prometheus.Desc) {
 	d.requests.Describe(ch)
 	d.duration.Describe(ch)
 }
 
 // Collect implements the [prometheus.Collector] interface.
-func (d *DefaultRoundTripMetrics) Collect(ch chan<- prometheus.Metric) {
+func (d *defaultRoundTripMetrics) Collect(ch chan<- prometheus.Metric) {
 	d.requests.Collect(ch)
 	d.duration.Collect(ch)
 }

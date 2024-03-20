@@ -47,12 +47,13 @@ func TestWithInstrumentedCache(t *testing.T) {
 	assert.Equal(t, 1, s.called)
 
 	assert.NoError(t, testutil.CollectAndCompare(m, bytes.NewBufferString(`
-# HELP foo_bar_api_cache_hit_total Number of times the cache was used
-# TYPE foo_bar_api_cache_hit_total counter
-foo_bar_api_cache_hit_total{application="snafu",method="GET",path="/"} 1
-# HELP foo_bar_api_cache_total Number of times the cache was consulted
-# TYPE foo_bar_api_cache_total counter
-foo_bar_api_cache_total{application="snafu",method="GET",path="/"} 2
+# HELP foo_bar_http_cache_hit_total Number of times the cache was used
+# TYPE foo_bar_http_cache_hit_total counter
+foo_bar_http_cache_hit_total{application="snafu",method="GET",path="/"} 1
+
+# HELP foo_bar_http_cache_total Number of times the cache was consulted
+# TYPE foo_bar_http_cache_total counter
+foo_bar_http_cache_total{application="snafu",method="GET",path="/"} 2
 `)))
 }
 

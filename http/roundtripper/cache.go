@@ -85,12 +85,12 @@ func NewCacheMetrics(namespace, subsystem, application string) CacheMetrics {
 	}
 	return &defaultCacheMetrics{
 		cache: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        prometheus.BuildFQName(namespace, subsystem, "api_cache_total"),
+			Name:        prometheus.BuildFQName(namespace, subsystem, "http_cache_total"),
 			Help:        "Number of times the cache was consulted",
 			ConstLabels: constLabels,
 		}, []string{"path", "method"}),
 		hits: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        prometheus.BuildFQName(namespace, subsystem, "api_cache_hit_total"),
+			Name:        prometheus.BuildFQName(namespace, subsystem, "http_cache_hit_total"),
 			Help:        "Number of times the cache was used",
 			ConstLabels: constLabels,
 		}, []string{"path", "method"}),
