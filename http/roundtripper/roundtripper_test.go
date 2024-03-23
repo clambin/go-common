@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
-	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -19,7 +19,7 @@ func TestWithRoundTripper(t *testing.T) {
 	c := http.Client{Transport: roundtripper.New(roundtripper.WithRoundTripper(&s))}
 	_, err := c.Get("/")
 	assert.NoError(t, err)
-	assert.Equal(t, 1, s.called)
+	assert.Equal(t, 1, int(s.called.Load()))
 }
 
 func TestRoundTripperFunc(t *testing.T) {
@@ -36,11 +36,10 @@ func TestRoundTripperFunc(t *testing.T) {
 
 type server struct {
 	delay       time.Duration
-	lock        sync.Mutex
-	called      int
-	inFlight    int
-	maxInFlight int
 	fail        bool
+	called      atomic.Int32
+	inFlight    atomic.Int32
+	maxInFlight atomic.Int32
 }
 
 func (s *server) RoundTrip(_ *http.Request) (*http.Response, error) {
@@ -60,15 +59,11 @@ func (s *server) RoundTrip(_ *http.Request) (*http.Response, error) {
 }
 
 func (s *server) inc() {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.called++
-	s.inFlight++
-	s.maxInFlight = max(s.inFlight, s.maxInFlight)
+	s.called.Add(1)
+	s.inFlight.Add(1)
+	s.maxInFlight.Store(max(s.inFlight.Load(), s.maxInFlight.Load()))
 }
 
 func (s *server) dec() {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.inFlight--
+	s.inFlight.Add(-1)
 }

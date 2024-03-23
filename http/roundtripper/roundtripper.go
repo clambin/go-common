@@ -7,12 +7,12 @@ import (
 // New returns a RoundTripper that implements the behaviour as specified by the different Option parameters.
 // New will construct a cascading roundTripper in the order of the provided options. E.g.
 //
-//	r := New(WithMetrics(...), WithCache(...))
+//	r := New(WithRequestMetrics(...), WithCache(...))
 //
 // returns a roundTripper that measures the client metrics, and then attempts to get the response from cache.
 // Metrics are therefor captured for cached and non-cached responses. On the other hand:
 //
-//	r := New(WithCache(...), WithMetrics(...))
+//	r := New(WithCache(...), WithRequestMetrics(...))
 //
 // first attempts to get the response from cache, and failing that, performs real call, recording its http
 // metrics.  Metrics will therefore only be captured for real http calls.
@@ -21,9 +21,9 @@ import (
 // cascade to a next roundTripper; it directly performs the http call using the provided transport.
 // Therefore, if we create the following RoundTripper:
 //
-//	r := New(WithRoundTripper(...), WithMetrics(...))
+//	r := New(WithRoundTripper(...), WithRequestMetrics(...))
 //
-// the WithMetrics option will not be used at all.
+// the WithRequestMetrics option will not be used at all.
 //
 // If no options are provided, or the final option isn't WithRoundTripper, the http call is done using
 // http.DefaultTransport.

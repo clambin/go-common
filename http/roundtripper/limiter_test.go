@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"github.com/clambin/go-common/http/roundtripper"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -18,9 +17,8 @@ func TestLimiter_RoundTrip(t *testing.T) {
 	s := server{delay: 10 * time.Millisecond}
 
 	const maxParallel = 10
-	metrics := roundtripper.NewLimiterMetrics("foo", "bar")
 	c := http.Client{
-		Transport: roundtripper.WithInstrumentedLimiter(maxParallel, metrics)(&s),
+		Transport: roundtripper.WithLimiter(maxParallel)(&s),
 	}
 
 	var wg sync.WaitGroup
@@ -33,17 +31,7 @@ func TestLimiter_RoundTrip(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	assert.Equal(t, maxParallel, s.maxInFlight)
-
-	assert.NoError(t, testutil.CollectAndCompare(metrics, bytes.NewBufferString(`
-# HELP foo_bar_api_inflight_current current in flight requests
-# TYPE foo_bar_api_inflight_current gauge
-foo_bar_api_inflight_current 0
-
-# HELP foo_bar_api_inflight_max maximum in flight requests
-# TYPE foo_bar_api_inflight_max gauge
-foo_bar_api_inflight_max 10
-`)))
+	assert.Equal(t, maxParallel, int(s.maxInFlight.Load()))
 }
 
 func TestLimiter_RoundTrip_Exceeded(t *testing.T) {
@@ -58,10 +46,7 @@ func TestLimiter_RoundTrip_Exceeded(t *testing.T) {
 	// wait for the first request to reach the server
 	// subsequent requests will block on the Limiter's semaphore
 	assert.Eventually(t, func() bool {
-		s.lock.Lock()
-		defer s.lock.Unlock()
-
-		return s.called > 0
+		return s.called.Load() > 0
 	}, time.Second, 10*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)

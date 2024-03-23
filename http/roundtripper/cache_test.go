@@ -26,7 +26,7 @@ func TestWithCache(t *testing.T) {
 	_, err = r.RoundTrip(req)
 	assert.NoError(t, err)
 
-	assert.Equal(t, 1, s.called)
+	assert.Equal(t, 1, int(s.called.Load()))
 }
 
 func TestWithInstrumentedCache(t *testing.T) {
@@ -37,14 +37,14 @@ func TestWithInstrumentedCache(t *testing.T) {
 		roundtripper.WithRoundTripper(&s),
 	)
 
-	req, _ := http.NewRequest(http.MethodGet, "/", nil)
+	req, _ := http.NewRequest(http.MethodGet, "", nil)
 	_, err := r.RoundTrip(req)
 	require.NoError(t, err)
 
 	_, err = r.RoundTrip(req)
 	assert.NoError(t, err)
 
-	assert.Equal(t, 1, s.called)
+	assert.Equal(t, 1, int(s.called.Load()))
 
 	assert.NoError(t, testutil.CollectAndCompare(m, bytes.NewBufferString(`
 # HELP foo_bar_http_cache_hit_total Number of times the cache was used

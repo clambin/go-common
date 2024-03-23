@@ -1,108 +1,70 @@
 package roundtripper
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/clambin/go-common/http/metrics"
 	"net/http"
-	"strconv"
 	"time"
 )
 
-type instrumentedRoundTripper struct {
+var _ http.RoundTripper = &roundTripMeasurer{}
+
+type roundTripMeasurer struct {
 	next    http.RoundTripper
-	metrics RoundTripMetrics
+	metrics metrics.RequestMetrics
 }
 
-// WithInstrumentedRoundTripper creates an [http.RoundTripper] that records requests metrics to the provided [RoundTripMetrics].
-// The caller must register the RoundTripMetrics with a Prometheus registry.
-func WithInstrumentedRoundTripper(m RoundTripMetrics) Option {
+// WithRequestMetrics creates a [http.RoundTripper] that measures requests count and duration.
+// The caller must register the metrics with a Prometheus registry.
+func WithRequestMetrics(m metrics.RequestMetrics) Option {
+	return WithInstrumentedRoundTripper(m)
+}
+
+// WithInstrumentedRoundTripper creates a [http.RoundTripper] that records requests metrics to the provided [metrics.RequestMetrics].
+// The caller must register the metrics with a Prometheus registry.
+//
+// deprecated: use WithRequestMetrics instead.
+func WithInstrumentedRoundTripper(m metrics.RequestMetrics) Option {
 	return func(next http.RoundTripper) http.RoundTripper {
-		return &instrumentedRoundTripper{
+		return &roundTripMeasurer{
 			next:    next,
 			metrics: m,
 		}
 	}
 }
 
-// RoundTrip implements the [http.RoundTripper] interface.
-func (i *instrumentedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+func (i *roundTripMeasurer) RoundTrip(req *http.Request) (*http.Response, error) {
 	start := time.Now()
 	resp, err := i.next.RoundTrip(req)
-	i.metrics.Measure(req, resp, err, time.Since(start))
+	var statusCode int
+	if err == nil {
+		statusCode = resp.StatusCode
+	}
+	i.metrics.Measure(req, statusCode, time.Since(start))
 	return resp, err
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// RoundTripMetrics measure metrics for each request processed by an instrumented roundtripper, created by WithInstrumentedRoundTripper.
-//
-// To create a custom RoundTripMetrics, implement the Measure method, which measures & records the necessary Prometheus metrics,
-// and implements the [prometheus.Collector] interface. See [defaultRoundTripMetrics] for an example.
-type RoundTripMetrics interface {
-	Measure(req *http.Request, resp *http.Response, err error, duration time.Duration)
-	prometheus.Collector
+var _ http.RoundTripper = &inflightMeasurer{}
+
+type inflightMeasurer struct {
+	metrics metrics.InFlightMetrics
+	next    http.RoundTripper
 }
 
-var _ RoundTripMetrics = &defaultRoundTripMetrics{}
-
-type defaultRoundTripMetrics struct {
-	requests *prometheus.CounterVec
-	duration *prometheus.SummaryVec
-}
-
-// NewDefaultRoundTripMetrics returns a new defaultRoundTripMetrics. The caller must register the returned metrics with a Prometheus registry.
-//
-// namespace and subsystem are prepended to the metric name.
-// application is added to the metric as a label "application". If application is empty, the label is not added.
-func NewDefaultRoundTripMetrics(namespace, subsystem, application string) *defaultRoundTripMetrics {
-	var constLabels map[string]string
-	if application != "" {
-		constLabels = map[string]string{"application": application}
-	}
-
-	return &defaultRoundTripMetrics{
-		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace:   namespace,
-			Subsystem:   subsystem,
-			Name:        "http_requests_total",
-			Help:        "total number of http requests",
-			ConstLabels: constLabels,
-		},
-			[]string{"method", "path", "code"},
-		),
-		duration: prometheus.NewSummaryVec(prometheus.SummaryOpts{
-			Namespace:   namespace,
-			Subsystem:   subsystem,
-			Name:        "http_request_duration_seconds",
-			Help:        "http request duration in seconds",
-			ConstLabels: constLabels,
-		},
-			[]string{"method", "path", "code"},
-		),
+// WithInflightMetrics creates a [http.RoundTripper] that measures outstanding requests.
+// The caller must register the metrics with a Prometheus registry.
+func WithInflightMetrics(m metrics.InFlightMetrics) Option {
+	return func(next http.RoundTripper) http.RoundTripper {
+		return &inflightMeasurer{
+			next:    next,
+			metrics: m,
+		}
 	}
 }
 
-// Measure measures the total number of requests and the duration of the current request.
-func (d *defaultRoundTripMetrics) Measure(req *http.Request, resp *http.Response, err error, duration time.Duration) {
-	var code string
-	if err == nil {
-		code = strconv.Itoa(resp.StatusCode)
-	}
-	path := req.URL.Path
-	if path == "" {
-		path = "/"
-	}
-	d.requests.WithLabelValues(req.Method, path, code).Add(1)
-	d.duration.WithLabelValues(req.Method, path, code).Observe(duration.Seconds())
-}
-
-// Describe implements the [prometheus.Collector] interface.
-func (d *defaultRoundTripMetrics) Describe(ch chan<- *prometheus.Desc) {
-	d.requests.Describe(ch)
-	d.duration.Describe(ch)
-}
-
-// Collect implements the [prometheus.Collector] interface.
-func (d *defaultRoundTripMetrics) Collect(ch chan<- prometheus.Metric) {
-	d.requests.Collect(ch)
-	d.duration.Collect(ch)
+func (i inflightMeasurer) RoundTrip(request *http.Request) (*http.Response, error) {
+	i.metrics.Inc()
+	defer i.metrics.Dec()
+	return i.next.RoundTrip(request)
 }
