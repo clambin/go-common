@@ -3,9 +3,10 @@ package roundtripper_test
 import (
 	"bytes"
 	"context"
+	"errors"
+	"github.com/clambin/go-common/http/pkg/testutils"
 	"github.com/clambin/go-common/http/roundtripper"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"io"
 	"net/http"
 	"sync"
@@ -21,17 +22,19 @@ func TestLimiter_RoundTrip(t *testing.T) {
 		Transport: roundtripper.WithLimiter(maxParallel)(&s),
 	}
 
-	var wg sync.WaitGroup
+	var eg errgroup.Group
 	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		eg.Go(func() error {
 			_, err := c.Get("/")
-			require.NoError(t, err)
-		}()
+			return err
+		})
 	}
-	wg.Wait()
-	assert.Equal(t, maxParallel, int(s.maxInFlight.Load()))
+	if err := eg.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if got := int(s.maxInFlight.Load()); got != maxParallel {
+		t.Errorf("got %d, want %d", got, maxParallel)
+	}
 }
 
 func TestLimiter_RoundTrip_Exceeded(t *testing.T) {
@@ -45,17 +48,21 @@ func TestLimiter_RoundTrip_Exceeded(t *testing.T) {
 
 	// wait for the first request to reach the server
 	// subsequent requests will block on the Limiter's semaphore
-	assert.Eventually(t, func() bool {
-		return s.called.Load() > 0
-	}, time.Second, 10*time.Millisecond)
+	if ok := testutils.Eventually(func() bool { return s.called.Load() > 0 }, time.Second, 10*time.Millisecond); !ok {
+		t.Error("condition never satisfied")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
 	_, err := c.Do(req)
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("expected DeadlineExceeded error, got %v", err)
+	}
 }
 
 func BenchmarkWithLimiter(b *testing.B) {
@@ -63,15 +70,17 @@ func BenchmarkWithLimiter(b *testing.B) {
 	for i := 0; i < 10000; i++ {
 		body.WriteString("hello\n")
 	}
-	rt := roundtripper.WithLimiter(50)(roundtripper.RoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+	rt := roundtripper.WithLimiter(100)(roundtripper.RoundTripperFunc(func(request *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(&body)}, nil
 
 	}))
 
 	req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080", nil)
 	var wg sync.WaitGroup
+
+	b.ResetTimer()
+	wg.Add(b.N)
 	for i := 0; i < b.N; i++ {
-		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			_, _ = rt.RoundTrip(req)

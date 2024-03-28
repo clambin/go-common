@@ -3,7 +3,6 @@ package metrics_test
 import (
 	"github.com/clambin/go-common/http/metrics"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
 )
@@ -63,7 +62,10 @@ inflight_requests_max{application="snafu"} 2
 			m.Inc()
 			m.Inc()
 			m.Dec()
-			assert.NoError(t, testutil.CollectAndCompare(m, strings.NewReader(tt.want)))
+
+			if err := testutil.CollectAndCompare(m, strings.NewReader(tt.want)); err != nil {
+				t.Error(err)
+			}
 		})
 	}
 }

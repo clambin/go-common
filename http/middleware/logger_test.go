@@ -3,27 +3,21 @@ package middleware_test
 import (
 	"bytes"
 	"github.com/clambin/go-common/http/middleware"
-	"github.com/stretchr/testify/assert"
+	"github.com/clambin/go-common/testutils"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
 
 func TestLogger(t *testing.T) {
-	out := bytes.NewBufferString("")
-	opt := slog.HandlerOptions{Level: slog.LevelDebug, ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
-		// Remove time from the output for predictable test output.
-		if a.Key == slog.TimeKey {
-			return slog.Attr{}
-		}
-		return a
-	}}
-	l := slog.New(slog.NewTextHandler(out, &opt))
+	var out bytes.Buffer
+	l := testutils.NewTextLogger(&out, slog.LevelDebug)
 	slog.SetDefault(l)
 
-	testCases := []struct {
+	tests := []struct {
 		name   string
 		level  slog.Level
 		logger middleware.RequestLogFormatter
@@ -52,7 +46,7 @@ func TestLogger(t *testing.T) {
 		},
 	}
 
-	for _, tt := range testCases {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out.Reset()
 
@@ -66,65 +60,12 @@ func TestLogger(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
-			assert.Equal(t, http.StatusOK, w.Code)
-			assert.Contains(t, out.String(), tt.want)
-
+			if w.Code != http.StatusOK {
+				t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+			}
+			if got := strings.Contains(out.String(), tt.want); got != true {
+				t.Errorf("got response %s, want %s", out.String(), tt.want)
+			}
 		})
 	}
 }
-
-/*
-func TestDefaultLogger(t *testing.T) {
-	out := bytes.NewBufferString("")
-	opt := slog.HandlerOptions{Level: slog.LevelDebug, ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
-		// Remove time from the output for predictable test output.
-		if a.Key == slog.TimeKey {
-			return slog.Attr{}
-		}
-		return a
-	}}
-	l := slog.New(slog.NewTextHandler(out, &opt))
-	slog.SetDefault(l)
-
-	r := http.NewServeMux()
-	r.Handle("/", middleware.RequestLogger(middleware.DefaultRequestLogger{})(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = writer.Write([]byte("hello"))
-	})))
-
-	req, _ := http.NewRequest(http.MethodGet, "/", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, out.String(), `level=INFO msg=request path=/ method=GET code=200 latency=`)
-}
-
-func BenchmarkLogger(b *testing.B) {
-	out := bytes.NewBufferString("")
-	opt := slog.HandlerOptions{Level: slog.LevelInfo, ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
-		// Remove time from the output for predictable test output.
-		if a.Key == slog.TimeKey {
-			return slog.Attr{}
-		}
-		return a
-	}}
-	l := slog.New(slog.NewTextHandler(out, &opt))
-	slog.SetDefault(l)
-
-	r := http.NewServeMux()
-	r.Handle("/", middleware.RequestLogger(middleware.DefaultRequestLogger{})(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = writer.Write([]byte("hello"))
-	})))
-
-	req, _ := http.NewRequest(http.MethodGet, "/", nil)
-	w := httptest.NewRecorder()
-	for i := 0; i < b.N; i++ {
-		r.ServeHTTP(w, req)
-		if w.Code != http.StatusOK {
-			b.Fail()
-		}
-	}
-}
-
-
-*/

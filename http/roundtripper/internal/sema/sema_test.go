@@ -2,8 +2,9 @@ package sema_test
 
 import (
 	"context"
+	"errors"
+	"github.com/clambin/go-common/http/pkg/testutils"
 	"github.com/clambin/go-common/http/roundtripper/internal/sema"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 )
@@ -14,20 +15,21 @@ func TestSemaphore(t *testing.T) {
 
 	ctx := context.Background()
 	for i := 0; i < maxCount; i++ {
-		assert.NoError(t, s.Acquire(ctx))
+		if err := s.Acquire(ctx); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-	err := s.Acquire(ctx)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	if err := s.Acquire(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("got wrong error: %v, wanted: %v", err, context.DeadlineExceeded)
+	}
 	cancel()
 
 	for i := 0; i < maxCount; i++ {
 		s.Release()
 	}
-	assert.Panics(t, func() { s.Release() })
-
-	ctx = context.Background()
-	assert.NoError(t, s.Acquire(ctx))
-	s.Release()
+	if ok := testutils.Panics(s.Release); !ok {
+		t.Error("expected panic")
+	}
 }

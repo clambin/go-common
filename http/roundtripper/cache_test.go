@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"github.com/clambin/go-common/http/roundtripper"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"testing"
@@ -21,12 +19,17 @@ func TestWithCache(t *testing.T) {
 
 	req, _ := http.NewRequest(http.MethodGet, "/", nil)
 	_, err := r.RoundTrip(req)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = r.RoundTrip(req)
-	assert.NoError(t, err)
-
-	assert.Equal(t, 1, int(s.called.Load()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.called.Load(); got != 1 {
+		t.Errorf("called.Load() = %d, want 1", got)
+	}
 }
 
 func TestWithInstrumentedCache(t *testing.T) {
@@ -38,15 +41,18 @@ func TestWithInstrumentedCache(t *testing.T) {
 	)
 
 	req, _ := http.NewRequest(http.MethodGet, "", nil)
-	_, err := r.RoundTrip(req)
-	require.NoError(t, err)
+	if _, err := r.RoundTrip(req); err != nil {
+		t.Fatal(err)
+	}
 
-	_, err = r.RoundTrip(req)
-	assert.NoError(t, err)
+	if _, err := r.RoundTrip(req); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.called.Load(); got != 1 {
+		t.Errorf("called.Load() = %d, want 1", got)
+	}
 
-	assert.Equal(t, 1, int(s.called.Load()))
-
-	assert.NoError(t, testutil.CollectAndCompare(m, bytes.NewBufferString(`
+	if err := testutil.CollectAndCompare(m, bytes.NewBufferString(`
 # HELP foo_bar_http_cache_hit_total Number of times the cache was used
 # TYPE foo_bar_http_cache_hit_total counter
 foo_bar_http_cache_hit_total{application="snafu",method="GET",path="/"} 1
@@ -54,7 +60,9 @@ foo_bar_http_cache_hit_total{application="snafu",method="GET",path="/"} 1
 # HELP foo_bar_http_cache_total Number of times the cache was consulted
 # TYPE foo_bar_http_cache_total counter
 foo_bar_http_cache_total{application="snafu",method="GET",path="/"} 2
-`)))
+`)); err != nil {
+		t.Errorf("incorrect metrics: %s", err)
+	}
 }
 
 func BenchmarkWithCache(b *testing.B) {

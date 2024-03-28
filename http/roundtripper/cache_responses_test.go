@@ -2,8 +2,6 @@ package roundtripper
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"testing"
@@ -74,9 +72,15 @@ func Test_responseCache(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest(tt.method, tt.url, nil)
 			key, _, found, err := c.get(req)
-			require.NoError(t, err)
-			assert.Equal(t, tt.found, found)
-			assert.NotEmpty(t, key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if found != tt.found {
+				t.Errorf("got %v, want %v", found, tt.found)
+			}
+			if key == "" {
+				t.Errorf("got empty key")
+			}
 
 			if !tt.found {
 				resp := &http.Response{
@@ -88,7 +92,9 @@ func Test_responseCache(t *testing.T) {
 				}
 
 				err = c.put(key, req, resp)
-				require.NoError(t, err)
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 		})
 	}
