@@ -24,7 +24,7 @@ func Eventually(f func() bool, timeout time.Duration, interval time.Duration) bo
 	defer cancel()
 
 	ch := make(chan bool)
-	go func(ctx context.Context) {
+	go func(ctx context.Context, f func() bool) {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
@@ -39,7 +39,7 @@ func Eventually(f func() bool, timeout time.Duration, interval time.Duration) bo
 				}
 			}
 		}
-	}(ctx)
+	}(ctx, f)
 
 	return <-ch
 }
