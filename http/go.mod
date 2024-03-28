@@ -3,7 +3,7 @@ module github.com/clambin/go-common/http
 go 1.21
 
 require (
-	github.com/clambin/go-common/cache v0.2.2
+	github.com/clambin/go-common/cache v0.3.0
 	github.com/prometheus/client_golang v1.19.0
 	github.com/stretchr/testify v1.9.0
 )
