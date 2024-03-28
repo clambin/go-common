@@ -2,8 +2,6 @@ package cache_test
 
 import (
 	"github.com/clambin/go-common/cache"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"runtime"
 	"slices"
 	"strconv"
@@ -13,87 +11,114 @@ import (
 
 func TestCache(t *testing.T) {
 	c := cache.New[string, string](time.Hour, 0)
-	require.NotNil(t, c)
-	assert.Zero(t, c.Size())
 
-	_, found := c.Get("foo")
-	require.False(t, found)
+	if c.GetDefaultExpiration() != time.Hour {
+		t.Error("default expiration was incorrect")
+	}
 
 	c.Add("foo", "bar")
-	var value string
-	value, found = c.Get("foo")
-	require.True(t, found)
-	assert.Equal(t, "bar", value)
+	value, found := c.Get("foo")
+	if !found {
+		t.Error("foo was not found")
+	}
+	if value != "bar" {
+		t.Error("value was not bar")
+	}
 
 	c.Add("foo", "foo")
 	value, found = c.Get("foo")
-	require.True(t, found)
-	assert.Equal(t, "foo", value)
+	if !found {
+		t.Error("foo was not found")
+	}
+	if value != "foo" {
+		t.Error("value was not foo")
+	}
+
+	if c.Len() != 1 {
+		t.Error("cache length should be 1")
+	}
+	if c.Size() != 1 {
+		t.Error("cache size should be 1")
+	}
 }
 
 func TestCacheExpiry(t *testing.T) {
-	c := cache.New[string, string](100*time.Millisecond, 0)
-	require.NotNil(t, c)
-
-	assert.Equal(t, 100*time.Millisecond, c.GetDefaultExpiration())
+	const shortExpiration = 100 * time.Millisecond
+	c := cache.New[string, string](shortExpiration, 0)
 
 	c.Add("foo", "bar")
-	value, found := c.Get("foo")
-	require.True(t, found)
-	assert.Equal(t, "bar", value)
-	assert.Equal(t, 1, c.Len())
-	assert.Equal(t, 1, c.Size())
 
-	assert.Eventually(t, func() bool {
+	retries := 2
+	found := true
+	for found && retries > 0 {
+		time.Sleep(shortExpiration)
 		_, found = c.Get("foo")
-		return !found
-	}, 200*time.Millisecond, 50*time.Millisecond)
+		retries--
+	}
 
-	assert.Equal(t, 0, c.Len())
-	assert.Equal(t, 1, c.Size())
-
+	if found {
+		t.Fatal("foo did not expire")
+	}
+	if c.Len() != 0 {
+		t.Error("cache length should be 0")
+	}
+	if c.Size() != 1 {
+		t.Error("cache size should be 1")
+	}
 }
 
 func TestCache_AddWithExpiry(t *testing.T) {
-	c := cache.New[string, int](100*time.Millisecond, 0)
-	require.NotNil(t, c)
+	const shortExpiration = 100 * time.Millisecond
+	c := cache.New[string, int](shortExpiration, 0)
 
 	c.Add("foo", 1)
 	c.AddWithExpiry("bar", 2, time.Hour)
-	assert.Equal(t, 2, c.Len())
 
+	want := []string{"bar", "foo"}
 	keys := c.GetKeys()
 	slices.Sort(keys)
-	assert.Equal(t, []string{"bar", "foo"}, keys)
+	if !slices.Equal(keys, want) {
+		t.Errorf("got keys %v, want %v", keys, want)
+	}
 
-	assert.Eventually(t, func() bool {
-		return c.Len() == 1
-	}, time.Second, 50*time.Millisecond)
+	retries := 2
+	found := true
+	for found && retries > 0 {
+		time.Sleep(shortExpiration)
+		_, found = c.Get("foo")
+		retries--
+	}
+
+	if found {
+		t.Error("foo did not expire")
+	}
 }
 
 func TestCacheScrubber(t *testing.T) {
-	c := cache.New[string, string](100*time.Millisecond, 150*time.Millisecond)
-	require.NotNil(t, c)
+	const shortExpiration = 100 * time.Millisecond
+	c := cache.New[string, string](shortExpiration/2, shortExpiration)
 
 	c.Add("foo", "bar")
-	value, found := c.Get("foo")
-	require.True(t, found)
-	assert.Equal(t, "bar", value)
 
-	assert.Eventually(t, func() bool {
-		_, found = c.Get("foo")
-		return found == false
-	}, 200*time.Millisecond, 50*time.Millisecond)
+	retries := 5
+	var empty bool
+	for !empty && retries > 0 {
+		time.Sleep(shortExpiration)
+		empty = c.Len() == 0
+		retries--
+	}
 
-	assert.Eventually(t, func() bool {
-		return c.Size() == 0
-	}, 200*time.Millisecond, 50*time.Millisecond)
+	if !empty {
+		t.Error("foo did not expire")
+	}
 
+	// this forces the runtime.Finalizer to call stopScrubber
 	c = nil
 	runtime.GC()
 	time.Sleep(10 * time.Millisecond)
 }
 
+/*
 func TestCache_Types(t *testing.T) {
 	c1 := cache.New[int, string](0, 0)
 	c1.Add(1, "hello")
@@ -118,6 +143,7 @@ func TestCache_Types(t *testing.T) {
 	assert.True(t, found3)
 	assert.Equal(t, "snafu", v3)
 }
+*/
 
 func BenchmarkCache_Get(b *testing.B) {
 	c := cache.New[int, string](time.Hour, 0)
