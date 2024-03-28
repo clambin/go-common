@@ -1,3 +1,3 @@
-module testutils
+module github.com/clambin/go-common/testutils
 
-go 1.22
+go 1.21
