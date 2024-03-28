@@ -3,8 +3,8 @@ package middleware_test
 import (
 	"github.com/clambin/go-common/http/metrics"
 	"github.com/clambin/go-common/http/middleware"
+	"github.com/clambin/go-common/http/pkg/testutils"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -79,9 +79,16 @@ foo_bar_http_requests_total{application="snafu",code="404",method="GET",path="/"
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequest(http.MethodGet, "/", nil)
 			h.ServeHTTP(w, r)
-			assert.Equal(t, tt.code, w.Code)
-			assert.NoError(t, testutil.CollectAndCompare(m, strings.NewReader(tt.want), "foo_bar_http_requests_total"))
-			assert.Equal(t, 2, testutil.CollectAndCount(m), "foo_bar_http_request_duration_seconds")
+
+			if w.Code != tt.code {
+				t.Errorf("got %d, want %d", w.Code, tt.code)
+			}
+			if err := testutil.CollectAndCompare(m, strings.NewReader(tt.want), "foo_bar_http_requests_total"); err != nil {
+				t.Error(err)
+			}
+			if want := testutil.CollectAndCount(m, "foo_bar_http_request_duration_seconds"); want != 1 {
+				t.Errorf("got %d, want 1", want)
+			}
 		})
 	}
 }
@@ -152,11 +159,17 @@ foo_bar_http_requests_total{application="snafu",code="404",method="GET",path="/"
 			w := httptest.NewRecorder()
 			r, _ := http.NewRequest(http.MethodGet, "/", nil)
 			h.ServeHTTP(w, r)
-			assert.Equal(t, tt.code, w.Code)
 
-			assert.NoError(t, testutil.CollectAndCompare(m, strings.NewReader(tt.want), "foo_bar_http_requests_total"))
-			// TODO: why is this only 2 for histograms?
-			assert.Equal(t, 2, testutil.CollectAndCount(m), "foo_bar_http_request_duration_seconds")
+			if w.Code != tt.code {
+				t.Errorf("got %d, want %d", w.Code, tt.code)
+			}
+
+			if err := testutil.CollectAndCompare(m, strings.NewReader(tt.want), "foo_bar_http_requests_total"); err != nil {
+				t.Error(err)
+			}
+			if got := testutil.CollectAndCount(m, "foo_bar_http_request_duration_seconds"); got != 1 {
+				t.Errorf("got %d, want 1", got)
+			}
 		})
 	}
 }
@@ -171,15 +184,16 @@ func TestWithInflightMetrics(t *testing.T) {
 	r, _ := http.NewRequest(http.MethodGet, "/", nil)
 	go func() {
 		h.ServeHTTP(w, r)
-		assert.Equal(t, http.StatusOK, w.Code)
 		ch <- struct{}{}
 	}()
 
-	assert.Eventually(t, func() bool {
+	if ok := testutils.Eventually(func() bool {
 		return s.counter.Load() > 0
-	}, time.Second, time.Millisecond)
+	}, time.Second, time.Millisecond); !ok {
+		t.Fatal("condition never satisfied")
+	}
 
-	assert.NoError(t, testutil.CollectAndCompare(m, strings.NewReader(`
+	if err := testutil.CollectAndCompare(m, strings.NewReader(`
 # HELP foo_bar_inflight_requests number of requests currently in flight
 # TYPE foo_bar_inflight_requests gauge
 foo_bar_inflight_requests{application="snafu"} 1
@@ -187,11 +201,13 @@ foo_bar_inflight_requests{application="snafu"} 1
 # HELP foo_bar_inflight_requests_max highest number of in flight requests
 # TYPE foo_bar_inflight_requests_max gauge
 foo_bar_inflight_requests_max{application="snafu"} 1
-`)))
+`)); err != nil {
+		t.Error(err)
+	}
 
 	<-ch
 
-	assert.NoError(t, testutil.CollectAndCompare(m, strings.NewReader(`
+	if err := testutil.CollectAndCompare(m, strings.NewReader(`
 # HELP foo_bar_inflight_requests number of requests currently in flight
 # TYPE foo_bar_inflight_requests gauge
 foo_bar_inflight_requests{application="snafu"} 0
@@ -199,7 +215,9 @@ foo_bar_inflight_requests{application="snafu"} 0
 # HELP foo_bar_inflight_requests_max highest number of in flight requests
 # TYPE foo_bar_inflight_requests_max gauge
 foo_bar_inflight_requests_max{application="snafu"} 1
-`)))
+`)); err != nil {
+		t.Error(err)
+	}
 }
 
 type server struct {

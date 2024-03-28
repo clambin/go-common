@@ -1,7 +1,7 @@
 package roundtripper
 
 import (
-	"github.com/stretchr/testify/assert"
+	"github.com/clambin/go-common/http/pkg/testutils"
 	"net/http"
 	"testing"
 	"time"
@@ -78,9 +78,13 @@ func TestCacheTable_shouldCache(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest(tt.method, tt.url, nil)
 			cache, duration := table.shouldCache(req)
-			assert.Equal(t, tt.cache, cache)
+			if cache != tt.cache {
+				t.Errorf("shouldCache() cache = %v, want %v", cache, tt.cache)
+			}
 			if tt.cache {
-				assert.Equal(t, tt.duration, duration)
+				if duration != tt.duration {
+					t.Errorf("shouldCache() duration = %v, want %v", duration, tt.duration)
+				}
 			}
 		})
 	}
@@ -89,7 +93,9 @@ func TestCacheTable_shouldCache(t *testing.T) {
 func TestCacheTable_DefaultCacheTable(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "/", nil)
 	cache, _ := DefaultCacheTable.shouldCache(req)
-	assert.True(t, cache)
+	if cache != true {
+		t.Errorf("shouldCache() cache = %v, want %v", cache, true)
+	}
 }
 
 func TestCacheTable_BadCacheTable(t *testing.T) {
@@ -97,7 +103,8 @@ func TestCacheTable_BadCacheTable(t *testing.T) {
 		Path:     "/snafu/[a-",
 		IsRegExp: true,
 	}}
-	assert.Panics(t, func() {
-		table.mustCompile()
-	})
+
+	if ok := testutils.Panics(table.mustCompile); !ok {
+		t.Error("function did not panic")
+	}
 }

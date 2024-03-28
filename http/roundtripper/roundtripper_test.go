@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"github.com/clambin/go-common/http/roundtripper"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"sync/atomic"
@@ -17,9 +15,12 @@ func TestWithRoundTripper(t *testing.T) {
 	s := server{}
 
 	c := http.Client{Transport: roundtripper.New(roundtripper.WithRoundTripper(&s))}
-	_, err := c.Get("/")
-	assert.NoError(t, err)
-	assert.Equal(t, 1, int(s.called.Load()))
+	if _, err := c.Get("/"); err != nil {
+		t.Fatal(err)
+	}
+	if got := int(s.called.Load()); got != 1 {
+		t.Errorf("s.called.Load() = %d, want 1", got)
+	}
 }
 
 func TestRoundTripperFunc(t *testing.T) {
@@ -30,8 +31,12 @@ func TestRoundTripperFunc(t *testing.T) {
 	c := http.Client{Transport: tp}
 
 	resp, err := c.Get("/")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("resp.StatusCode = %d, want %d", resp.StatusCode, http.StatusNoContent)
+	}
 }
 
 type server struct {

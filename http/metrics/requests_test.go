@@ -3,7 +3,6 @@ package metrics_test
 import (
 	"github.com/clambin/go-common/http/metrics"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/url"
 	"strings"
@@ -75,8 +74,10 @@ http_requests_total{code="200",method="GET",path="/"} 1
 			m := metrics.NewRequestSummaryMetrics(tt.namespace, tt.subsystem, tt.constLabels)
 			req := http.Request{Method: http.MethodGet, URL: &url.URL{Path: tt.path}}
 			m.Measure(&req, http.StatusOK, time.Second)
-			assert.NoError(t, testutil.CollectAndCompare(m, strings.NewReader(tt.want)))
 
+			if err := testutil.CollectAndCompare(m, strings.NewReader(tt.want)); err != nil {
+				t.Error(err)
+			}
 		})
 	}
 }
@@ -199,7 +200,10 @@ http_requests_total{code="200",method="GET",path="/"} 1
 			m := metrics.NewRequestHistogramMetrics(tt.namespace, tt.subsystem, tt.constLabels, tt.buckets...)
 			req := http.Request{Method: http.MethodGet, URL: &url.URL{Path: tt.path}}
 			m.Measure(&req, http.StatusOK, time.Second)
-			assert.NoError(t, testutil.CollectAndCompare(m, strings.NewReader(tt.want)))
+
+			if err := testutil.CollectAndCompare(m, strings.NewReader(tt.want)); err != nil {
+				t.Error(err)
+			}
 		})
 	}
 }

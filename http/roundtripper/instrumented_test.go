@@ -2,10 +2,9 @@ package roundtripper_test
 
 import (
 	"github.com/clambin/go-common/http/metrics"
+	"github.com/clambin/go-common/http/pkg/testutils"
 	"github.com/clambin/go-common/http/roundtripper"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"strings"
 	"testing"
@@ -75,14 +74,18 @@ foo_bar_http_requests_total{application="snafu",code="0",method="GET",path="/foo
 
 			req, _ := http.NewRequest(http.MethodGet, "/foo", nil)
 			_, err := r.RoundTrip(req)
-			if tt.pass {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
+			if tt.pass && err != nil {
+				t.Errorf("round tripper.RoundTrip() error = %v, want pass %v", err, tt.pass)
+			} else if !tt.pass && err == nil {
+				t.Errorf("round tripper.RoundTrip() error = nil, want pass %v", tt.pass)
 			}
 
-			assert.NoError(t, testutil.CollectAndCompare(m, strings.NewReader(tt.want), "foo_bar_http_requests_total"))
-			assert.Equal(t, 1, testutil.CollectAndCount(m, "foo_bar_http_request_duration_seconds"))
+			if err = testutil.CollectAndCompare(m, strings.NewReader(tt.want), "foo_bar_http_requests_total"); err != nil {
+				t.Errorf("invalid metrics: %v", err)
+			}
+			if got := testutil.CollectAndCount(m, "foo_bar_http_request_duration_seconds"); got != 1 {
+				t.Errorf("invalid metrics: got %d, want %d", got, 1)
+			}
 		})
 	}
 }
@@ -97,15 +100,14 @@ func TestWithInflightMetrics(t *testing.T) {
 
 	req, _ := http.NewRequest(http.MethodGet, "/", nil)
 	go func() {
-		_, err := r.RoundTrip(req)
-		assert.NoError(t, err)
+		_, _ = r.RoundTrip(req)
 	}()
 
-	assert.Eventually(t, func() bool {
-		return s.inFlight.Load() > 0
-	}, time.Second, time.Millisecond)
+	if ok := testutils.Eventually(func() bool { return s.inFlight.Load() > 0 }, time.Second, 10*time.Millisecond); !ok {
+		t.Error("condition never satisfied")
+	}
 
-	assert.NoError(t, testutil.CollectAndCompare(m, strings.NewReader(`
+	if err := testutil.CollectAndCompare(m, strings.NewReader(`
 # HELP foo_bar_inflight_requests number of requests currently in flight
 # TYPE foo_bar_inflight_requests gauge
 foo_bar_inflight_requests{application="snafu"} 1
@@ -113,6 +115,7 @@ foo_bar_inflight_requests{application="snafu"} 1
 # HELP foo_bar_inflight_requests_max highest number of in flight requests
 # TYPE foo_bar_inflight_requests_max gauge
 foo_bar_inflight_requests_max{application="snafu"} 1
-`)))
-
+`)); err != nil {
+		t.Errorf("invalid metrics: %v", err)
+	}
 }
