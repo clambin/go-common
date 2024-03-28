@@ -14,8 +14,6 @@ jobs:
         module:
           - cache
           - http
-          - httpclient
-          - httpserver
           - set
           - slackbot
           - tabulator
