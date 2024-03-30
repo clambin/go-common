@@ -15,7 +15,7 @@ on:
 jobs:
   test:
     uses: ./.github/workflows/test_reuse.yaml
-    with:
+    secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   release:
     runs-on: ubuntu-latest
