@@ -17,11 +17,11 @@ var args = charmer.Arguments{
 	"duration": {Default: time.Second},
 }
 
-func TestSetPersistentFlagsWithDefaults(t *testing.T) {
+func TestSetPersistentFlags(t *testing.T) {
 	var cmd cobra.Command
 	v := viper.New()
 
-	if err := charmer.SetPersistentFlagsWithDefaults(&cmd, v, args); err != nil {
+	if err := charmer.SetPersistentFlags(&cmd, v, args); err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
@@ -32,9 +32,20 @@ func TestSetPersistentFlagsWithDefaults(t *testing.T) {
 	}
 
 	for name := range args {
-		want := args[name].Default
-		got := v.Get(name)
-		if want != got {
+		var got any
+		switch args[name].Default.(type) {
+		case int:
+			got = v.GetInt(name)
+		case float64:
+			got = v.GetFloat64(name)
+		case bool:
+			got = v.GetBool(name)
+		case string:
+			got = v.GetString(name)
+		case time.Duration:
+			got = v.GetDuration(name)
+		}
+		if want := args[name].Default; want != got {
 			t.Errorf("Flag %s had incorrect default value. want %s, got %s", name, want, got)
 		}
 	}
@@ -46,6 +57,21 @@ func TestSetPersistentFlags_Invalid_Type(t *testing.T) {
 	badArgs := charmer.Arguments{"time": {Default: time.Now()}}
 	if err := charmer.SetPersistentFlags(&cmd, v, badArgs); err == nil {
 		t.Error("Expected error, got none")
+	}
+}
+
+func TestSetDefaults(t *testing.T) {
+	v := viper.New()
+	if got := v.GetString("string"); got != "" {
+		t.Fatalf("Unexpected default value: %v", got)
+	}
+
+	if err := charmer.SetDefaults(v, args); err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	if got := v.GetString("string"); got != "foo" {
+		t.Errorf("Unexpected default value: %v", got)
 	}
 }
 
