@@ -3,6 +3,7 @@ module github.com/clambin/go-common/charmer
 go 1.22.1
 
 require (
+	github.com/clambin/go-common/testutils v0.1.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
 )

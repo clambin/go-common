@@ -14,6 +14,16 @@ type Argument struct {
 	Help    string
 }
 
+// SetPersistentFlagsWithDefaults adds the arguments to cmd as PersistentFlags, binds them to viper and sets up the default values.
+func SetPersistentFlagsWithDefaults(cmd *cobra.Command, viper *viper.Viper, args Arguments) error {
+	var err error
+	if err = SetPersistentFlags(cmd, viper, args); err == nil {
+		err = SetDefaults(viper, args)
+	}
+	return err
+}
+
+// SetDefaults sets up the default values in viper.
 func SetDefaults(v *viper.Viper, args Arguments) error {
 	for name, arg := range args {
 		if arg.Default == nil {
@@ -24,6 +34,7 @@ func SetDefaults(v *viper.Viper, args Arguments) error {
 	return nil
 }
 
+// SetPersistentFlags adds the arguments to cmd as PersistentFlags and binds them to viper.
 func SetPersistentFlags(cmd *cobra.Command, v *viper.Viper, args Arguments) error {
 	for name, arg := range args {
 		switch val := arg.Default.(type) {

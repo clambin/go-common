@@ -11,6 +11,7 @@ type logCtxType string
 
 var logCtx logCtxType = "logger"
 
+// SetTextLogger creates a slog.Logger with a slog.TextHandler and adds it to the command's context. If debug is true, the handler's log level is slog.LevelDebug
 func SetTextLogger(cmd *cobra.Command, debug bool) {
 	var opts slog.HandlerOptions
 	if debug {
@@ -19,6 +20,7 @@ func SetTextLogger(cmd *cobra.Command, debug bool) {
 	SetLogger(cmd, slog.New(slog.NewTextHandler(os.Stderr, &opts)))
 }
 
+// SetJSONLogger creates a slog.Logger with a slog.JSONHandler and adds it to the command's context. If debug is true, the handler's log level is slog.LevelDebug
 func SetJSONLogger(cmd *cobra.Command, debug bool) {
 	var opts slog.HandlerOptions
 	if debug {
@@ -27,6 +29,7 @@ func SetJSONLogger(cmd *cobra.Command, debug bool) {
 	SetLogger(cmd, slog.New(slog.NewJSONHandler(os.Stderr, &opts)))
 }
 
+// SetLogger adds a slog.Logger to the command's context.
 func SetLogger(cmd *cobra.Command, logger *slog.Logger) {
 	ctx := cmd.Context()
 	if ctx == nil {
@@ -35,6 +38,7 @@ func SetLogger(cmd *cobra.Command, logger *slog.Logger) {
 	cmd.SetContext(context.WithValue(ctx, logCtx, logger))
 }
 
+// GetLogger retries the logger from the command's context. If no logger was set, it returns slog.Default().
 func GetLogger(cmd *cobra.Command) *slog.Logger {
 	if ctx := cmd.Context(); ctx != nil {
 		if l := ctx.Value(logCtx); l != nil {
