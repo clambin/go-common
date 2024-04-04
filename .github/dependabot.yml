@@ -1,11 +1,19 @@
 version: 2
 updates:
   - package-ecosystem: "gomod"
-    directory: "/set"
+    directory: "/cache"
     schedule:
       interval: "daily"
   - package-ecosystem: "gomod"
-    directory: "/tabulator"
+    directory: "/charmer"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "gomod"
+    directory: "/http"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "gomod"
+    directory: "/set"
     schedule:
       interval: "daily"
   - package-ecosystem: "gomod"
@@ -13,19 +21,15 @@ updates:
     schedule:
       interval: "daily"
   - package-ecosystem: "gomod"
-    directory: "/httpclient"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "gomod"
-    directory: "/httpserver"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "gomod"
-    directory: "/cache"
+    directory: "/tabulator"
     schedule:
       interval: "daily"
   - package-ecosystem: "gomod"
     directory: "/taskmanager"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "gomod"
+    directory: "/testutils"
     schedule:
       interval: "daily"
   - package-ecosystem: "github-actions"
