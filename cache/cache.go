@@ -83,6 +83,13 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 	return e.value, found
 }
 
+// Remove removes the element with the provided key from the cache.
+func (c *Cache[K, V]) Remove(key K) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	delete(c.values, key)
+}
+
 // GetKeys returns all keys in the cache.
 func (c *Cache[K, V]) GetKeys() (keys []K) {
 	c.lock.RLock()

@@ -40,6 +40,11 @@ func TestCache(t *testing.T) {
 	if c.Size() != 1 {
 		t.Error("cache size should be 1")
 	}
+
+	c.Remove("foo")
+	if _, found = c.Get("foo"); found {
+		t.Error("foo was found")
+	}
 }
 
 func TestCacheExpiry(t *testing.T) {
