@@ -132,6 +132,6 @@ func (c *realCache[K, V]) scrub() {
 	defer c.lock.Unlock()
 
 	maps.DeleteFunc(c.values, func(k K, e entry[V]) bool {
-		return time.Now().After(e.expiry)
+		return e.isExpired()
 	})
 }

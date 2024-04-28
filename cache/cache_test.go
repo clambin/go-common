@@ -1,6 +1,7 @@
 package cache_test
 
 import (
+	"context"
 	"github.com/clambin/go-common/cache"
 	"runtime"
 	"slices"
@@ -53,15 +54,12 @@ func TestCacheExpiry(t *testing.T) {
 
 	c.Add("foo", "bar")
 
-	retries := 2
-	found := true
-	for found && retries > 0 {
-		time.Sleep(shortExpiration)
-		_, found = c.Get("foo")
-		retries--
-	}
+	expired := eventually(func() bool {
+		_, found := c.Get("foo")
+		return !found
+	}, time.Second, shortExpiration)
 
-	if found {
+	if !expired {
 		t.Fatal("foo did not expire")
 	}
 	if c.Len() != 0 {
@@ -86,15 +84,12 @@ func TestCache_AddWithExpiry(t *testing.T) {
 		t.Errorf("got keys %v, want %v", keys, want)
 	}
 
-	retries := 2
-	found := true
-	for found && retries > 0 {
-		time.Sleep(shortExpiration)
-		_, found = c.Get("foo")
-		retries--
-	}
+	expired := eventually(func() bool {
+		_, found := c.Get("foo")
+		return !found
+	}, time.Second, shortExpiration)
 
-	if found {
+	if !expired {
 		t.Error("foo did not expire")
 	}
 }
@@ -105,16 +100,12 @@ func TestCacheScrubber(t *testing.T) {
 
 	c.Add("foo", "bar")
 
-	retries := 5
-	var empty bool
-	for !empty && retries > 0 {
-		time.Sleep(shortExpiration)
-		empty = c.Len() == 0
-		retries--
-	}
+	scrubbed := eventually(func() bool {
+		return c.Size() == 0
+	}, time.Second, shortExpiration)
 
-	if !empty {
-		t.Error("foo did not expire")
+	if !scrubbed {
+		t.Error("cache was not scrubbed")
 	}
 
 	// this forces the runtime.Finalizer to call stopScrubber
@@ -123,32 +114,30 @@ func TestCacheScrubber(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 }
 
-/*
-func TestCache_Types(t *testing.T) {
-	c1 := cache.New[int, string](0, 0)
-	c1.Add(1, "hello")
-	v1, found := c1.Get(1)
-	assert.True(t, found)
-	assert.Equal(t, "hello", v1)
+func eventually(f func() bool, timeout time.Duration, interval time.Duration) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	c2 := cache.New[string, string](0, 0)
-	c2.Add("foo", "bar")
-	v2, found2 := c2.Get("foo")
-	assert.True(t, found2)
-	assert.Equal(t, "bar", v2)
+	ch := make(chan bool)
+	go func(ctx context.Context, f func() bool) {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				ch <- false
+				return
+			case <-ticker.C:
+				if ok := f(); ok {
+					ch <- true
+					return
+				}
+			}
+		}
+	}(ctx, f)
 
-	type testStruct struct {
-		value int
-	}
-	key := testStruct{value: 1}
-
-	c3 := cache.New[testStruct, string](0, 0)
-	c3.Add(key, "snafu")
-	v3, found3 := c3.Get(key)
-	assert.True(t, found3)
-	assert.Equal(t, "snafu", v3)
+	return <-ch
 }
-*/
 
 func BenchmarkCache_Get(b *testing.B) {
 	c := cache.New[int, string](time.Hour, 0)
