@@ -27,14 +27,17 @@ type RequestLogFormatter interface {
 	FormatRequest(*http.Request, int, time.Duration) []slog.Attr
 }
 
-// DefaultRequestLogFormatter is the default RequestLogFormatter. It logs the request's HTTP method and the path.
+// DefaultRequestLogFormatter is the default RequestLogFormatter. It logs the request's HTTP method and the path, the response's status code and the latency of the request.
 var DefaultRequestLogFormatter RequestLogFormatter = &defaultRequestLogFormatter{}
 
 type defaultRequestLogFormatter struct{}
 
 func (d defaultRequestLogFormatter) FormatRequest(r *http.Request, statusCode int, latency time.Duration) []slog.Attr {
-	return []slog.Attr{slog.String("path", r.URL.Path), slog.String("method", r.Method),
-		slog.Int("code", statusCode), slog.Duration("latency", latency),
+	return []slog.Attr{
+		slog.String("path", r.URL.Path),
+		slog.String("method", r.Method),
+		slog.Int("code", statusCode),
+		slog.Duration("latency", latency),
 	}
 }
 

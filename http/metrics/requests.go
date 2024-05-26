@@ -55,7 +55,6 @@ func (m RequestSummaryMetrics) Measure(req *http.Request, statusCode int, durati
 	}
 	m.requests.WithLabelValues(req.Method, path, code).Inc()
 	m.duration.WithLabelValues(req.Method, path, code).Observe(duration.Seconds())
-
 }
 
 func (m RequestSummaryMetrics) Describe(ch chan<- *prometheus.Desc) {
