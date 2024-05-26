@@ -24,7 +24,7 @@ const (
 	RequestsDuration = "http_request_duration_seconds"
 )
 
-func NewRequestSummaryMetrics(namespace, subsystem string, constLabels map[string]string) *RequestSummaryMetrics {
+func NewRequestSummaryMetrics(namespace, subsystem string, constLabels prometheus.Labels) *RequestSummaryMetrics {
 	return &RequestSummaryMetrics{
 		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace:   namespace,
@@ -76,7 +76,7 @@ type RequestHistogramMetrics struct {
 	duration *prometheus.HistogramVec
 }
 
-func NewRequestHistogramMetrics(namespace, subsystem string, constLabels map[string]string, buckets ...float64) *RequestHistogramMetrics {
+func NewRequestHistogramMetrics(namespace, subsystem string, constLabels prometheus.Labels, buckets ...float64) *RequestHistogramMetrics {
 	if len(buckets) == 0 {
 		buckets = prometheus.DefBuckets
 	}
