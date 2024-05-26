@@ -5,23 +5,15 @@ import (
 	"sync/atomic"
 )
 
-type InFlightMetrics interface {
-	Inc()
-	Dec()
-	prometheus.Collector
-}
-
-var _ InFlightMetrics = &inflightMetric{}
-
-type inflightMetric struct {
+type InflightMetrics struct {
 	current     atomic.Int32
 	maxSeen     atomic.Int32
 	inflight    prometheus.Gauge
 	maxInflight prometheus.Gauge
 }
 
-func NewInflightMetric(namespace, subsystem string, labels map[string]string) InFlightMetrics {
-	return &inflightMetric{
+func NewInflightMetrics(namespace, subsystem string, labels map[string]string) *InflightMetrics {
+	return &InflightMetrics{
 		inflight: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace:   namespace,
 			Subsystem:   subsystem,
@@ -39,27 +31,27 @@ func NewInflightMetric(namespace, subsystem string, labels map[string]string) In
 	}
 }
 
-func (i *inflightMetric) Inc() {
-	val := i.current.Add(1)
-	i.inflight.Set(float64(val))
+func (m *InflightMetrics) Inc() {
+	val := m.current.Add(1)
+	m.inflight.Set(float64(val))
 
-	if val > i.maxSeen.Load() {
-		i.maxSeen.Store(val)
-		i.maxInflight.Set(float64(val))
+	if val > m.maxSeen.Load() {
+		m.maxSeen.Store(val)
+		m.maxInflight.Set(float64(val))
 	}
 }
 
-func (i *inflightMetric) Dec() {
-	i.current.Add(-1)
-	i.inflight.Set(float64(i.current.Load()))
+func (m *InflightMetrics) Dec() {
+	m.current.Add(-1)
+	m.inflight.Set(float64(m.current.Load()))
 }
 
-func (i *inflightMetric) Describe(ch chan<- *prometheus.Desc) {
-	i.inflight.Describe(ch)
-	i.maxInflight.Describe(ch)
+func (m *InflightMetrics) Describe(ch chan<- *prometheus.Desc) {
+	m.inflight.Describe(ch)
+	m.maxInflight.Describe(ch)
 }
 
-func (i *inflightMetric) Collect(ch chan<- prometheus.Metric) {
-	i.inflight.Collect(ch)
-	i.maxInflight.Collect(ch)
+func (m *InflightMetrics) Collect(ch chan<- prometheus.Metric) {
+	m.inflight.Collect(ch)
+	m.maxInflight.Collect(ch)
 }

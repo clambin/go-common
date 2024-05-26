@@ -96,7 +96,7 @@ foo_bar_http_requests_total{application="snafu",code="0",method="GET",path="/foo
 
 func TestWithInflightMetrics(t *testing.T) {
 	s := server{delay: 500 * time.Millisecond}
-	m := metrics.NewInflightMetric("foo", "bar", map[string]string{"application": "snafu"})
+	m := metrics.NewInflightMetrics("foo", "bar", map[string]string{"application": "snafu"})
 	r := roundtripper.New(
 		roundtripper.WithInflightMetrics(m),
 		roundtripper.WithRoundTripper(&s),

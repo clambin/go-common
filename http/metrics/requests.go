@@ -7,11 +7,6 @@ import (
 	"time"
 )
 
-type RequestMetrics interface {
-	Measure(req *http.Request, statusCode int, duration time.Duration)
-	prometheus.Collector
-}
-
 const (
 	RequestTotal     = "http_requests_total"
 	RequestsDuration = "http_request_duration_seconds"
@@ -30,27 +25,27 @@ type Options struct {
 	ConstLabels prometheus.Labels
 	DurationType
 	Buckets     []float64
-	MakeMetrics func() (CounterMetric, DurationMetric)
-	Labels      func(req *http.Request, statusCode int, _ time.Duration) []string
+	LabelValues LabelValuesFunc
 }
 
-func NewRequestMetrics(o Options) RequestMetrics {
-	var r CounterMetric
-	var d DurationMetric
+type LabelValuesFunc func(*http.Request, int) (method string, path string, code string)
 
+func NewRequestMetrics(o Options) RequestMetrics {
 	if len(o.Buckets) == 0 {
 		o.Buckets = prometheus.DefBuckets
 	}
-
-	if o.MakeMetrics != nil {
-		r, d = o.MakeMetrics()
-		return requestMetrics{
-			CounterMetric:  r,
-			DurationMetric: d,
+	if o.LabelValues == nil {
+		o.LabelValues = func(req *http.Request, statusCode int) (string, string, string) {
+			code := strconv.Itoa(statusCode)
+			path := req.URL.Path
+			if path == "" {
+				path = "/"
+			}
+			return req.Method, path, code
 		}
 	}
 
-	r = prometheus.NewCounterVec(prometheus.CounterOpts{
+	r := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace:   o.Namespace,
 		Subsystem:   o.Subsystem,
 		Name:        RequestTotal,
@@ -60,6 +55,7 @@ func NewRequestMetrics(o Options) RequestMetrics {
 		[]string{"method", "path", "code"},
 	)
 
+	var d DurationMetric
 	switch o.DurationType {
 	case SummaryDuration:
 		d = prometheus.NewSummaryVec(prometheus.SummaryOpts{
@@ -84,14 +80,19 @@ func NewRequestMetrics(o Options) RequestMetrics {
 		)
 	}
 
-	return requestMetrics{CounterMetric: r, DurationMetric: d}
+	return RequestMetrics{
+		CounterVec:     r,
+		DurationMetric: d,
+		labelValues:    o.LabelValues,
+	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-type requestMetrics struct {
-	CounterMetric
+type RequestMetrics struct {
+	*prometheus.CounterVec
 	DurationMetric
+	labelValues func(*http.Request, int) (string, string, string)
 }
 
 type CounterMetric interface {
@@ -104,27 +105,22 @@ type DurationMetric interface {
 	prometheus.Collector
 }
 
-func (m requestMetrics) Labels(req *http.Request, statusCode int, _ time.Duration) []string {
-	code := strconv.Itoa(statusCode)
-	path := req.URL.Path
-	if path == "" {
-		path = "/"
-	}
-	return []string{req.Method, path, code}
+func (m RequestMetrics) Labels(req *http.Request, statusCode int) (string, string, string) {
+	return m.labelValues(req, statusCode)
 }
 
-func (m requestMetrics) Measure(req *http.Request, statusCode int, duration time.Duration) {
-	labels := m.Labels(req, statusCode, duration)
-	m.CounterMetric.WithLabelValues(labels...).Inc()
-	m.DurationMetric.WithLabelValues(labels...).Observe(duration.Seconds())
+func (m RequestMetrics) Measure(req *http.Request, statusCode int, duration time.Duration) {
+	l1, l2, l3 := m.Labels(req, statusCode)
+	m.CounterVec.WithLabelValues(l1, l2, l3).Inc()
+	m.DurationMetric.WithLabelValues(l1, l2, l3).Observe(duration.Seconds())
 }
 
-func (m requestMetrics) Describe(ch chan<- *prometheus.Desc) {
-	m.CounterMetric.Describe(ch)
+func (m RequestMetrics) Describe(ch chan<- *prometheus.Desc) {
+	m.CounterVec.Describe(ch)
 	m.DurationMetric.Describe(ch)
 }
 
-func (m requestMetrics) Collect(ch chan<- prometheus.Metric) {
-	m.CounterMetric.Collect(ch)
+func (m RequestMetrics) Collect(ch chan<- prometheus.Metric) {
+	m.CounterVec.Collect(ch)
 	m.DurationMetric.Collect(ch)
 }

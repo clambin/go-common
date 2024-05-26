@@ -24,14 +24,14 @@ func WithRequestMetrics(m metrics.RequestMetrics) Option {
 	}
 }
 
-func (i *roundTripMeasurer) RoundTrip(req *http.Request) (*http.Response, error) {
+func (m *roundTripMeasurer) RoundTrip(req *http.Request) (*http.Response, error) {
 	start := time.Now()
-	resp, err := i.next.RoundTrip(req)
+	resp, err := m.next.RoundTrip(req)
 	var statusCode int
 	if err == nil {
 		statusCode = resp.StatusCode
 	}
-	i.metrics.Measure(req, statusCode, time.Since(start))
+	m.metrics.Measure(req, statusCode, time.Since(start))
 	return resp, err
 }
 
@@ -40,13 +40,13 @@ func (i *roundTripMeasurer) RoundTrip(req *http.Request) (*http.Response, error)
 var _ http.RoundTripper = &inflightMeasurer{}
 
 type inflightMeasurer struct {
-	metrics metrics.InFlightMetrics
+	metrics *metrics.InflightMetrics
 	next    http.RoundTripper
 }
 
 // WithInflightMetrics creates a [http.RoundTripper] that measures outstanding requests.
 // The caller must register the metrics with a Prometheus registry.
-func WithInflightMetrics(m metrics.InFlightMetrics) Option {
+func WithInflightMetrics(m *metrics.InflightMetrics) Option {
 	return func(next http.RoundTripper) http.RoundTripper {
 		return &inflightMeasurer{
 			next:    next,
@@ -55,8 +55,8 @@ func WithInflightMetrics(m metrics.InFlightMetrics) Option {
 	}
 }
 
-func (i inflightMeasurer) RoundTrip(request *http.Request) (*http.Response, error) {
-	i.metrics.Inc()
-	defer i.metrics.Dec()
-	return i.next.RoundTrip(request)
+func (m inflightMeasurer) RoundTrip(request *http.Request) (*http.Response, error) {
+	m.metrics.Inc()
+	defer m.metrics.Dec()
+	return m.next.RoundTrip(request)
 }

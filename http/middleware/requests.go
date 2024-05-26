@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"github.com/clambin/go-common/http/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 	"net/http"
 	"time"
 )
@@ -10,10 +11,15 @@ var _ http.Handler = requestMetricsHandler{}
 
 type requestMetricsHandler struct {
 	next    http.Handler
-	metrics metrics.RequestMetrics
+	metrics RequestMetrics
 }
 
-func WithRequestMetrics(m metrics.RequestMetrics) func(next http.Handler) http.Handler {
+type RequestMetrics interface {
+	Measure(req *http.Request, statusCode int, duration time.Duration)
+	prometheus.Collector
+}
+
+func WithRequestMetrics(m RequestMetrics) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return requestMetricsHandler{next: next, metrics: m}
 	}
@@ -55,17 +61,17 @@ var _ http.Handler = requestMetricsHandler{}
 
 type inflightMetricsHandler struct {
 	next    http.Handler
-	metrics metrics.InFlightMetrics
+	metrics *metrics.InflightMetrics
 }
 
-func WithInflightMetrics(m metrics.InFlightMetrics) func(next http.Handler) http.Handler {
+func WithInflightMetrics(m *metrics.InflightMetrics) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return inflightMetricsHandler{next: next, metrics: m}
 	}
 }
 
-func (s inflightMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.metrics.Inc()
-	defer s.metrics.Dec()
-	s.next.ServeHTTP(w, r)
+func (h inflightMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.metrics.Inc()
+	defer h.metrics.Dec()
+	h.next.ServeHTTP(w, r)
 }

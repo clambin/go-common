@@ -185,7 +185,7 @@ foo_bar_http_requests_total{application="snafu",code="404",method="GET",path="/"
 
 func TestWithInflightMetrics(t *testing.T) {
 	s := server{wait: 500 * time.Millisecond}
-	m := metrics.NewInflightMetric("foo", "bar", map[string]string{"application": "snafu"})
+	m := metrics.NewInflightMetrics("foo", "bar", map[string]string{"application": "snafu"})
 	h := middleware.WithInflightMetrics(m)(&s)
 
 	ch := make(chan struct{})

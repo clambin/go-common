@@ -6,6 +6,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,11 +20,12 @@ func TestNewRequestMetrics(t *testing.T) {
 		constLabels  prometheus.Labels
 		durationType metrics.DurationType
 		buckets      []float64
+		labels       metrics.LabelValuesFunc
 		path         string
 		want         string
 	}{
 		{
-			name:         "all-in",
+			name:         "summary - all-in",
 			namespace:    "foo",
 			subsystem:    "bar",
 			constLabels:  prometheus.Labels{"application": "app"},
@@ -41,7 +43,7 @@ foo_bar_http_requests_total{application="app",code="200",method="GET",path="/"} 
 `,
 		},
 		{
-			name:         "subst path",
+			name:         "summary - subst path",
 			namespace:    "foo",
 			subsystem:    "bar",
 			constLabels:  prometheus.Labels{"application": "app"},
@@ -59,7 +61,7 @@ foo_bar_http_requests_total{application="app",code="200",method="GET",path="/"} 
 `,
 		},
 		{
-			name: "no labels",
+			name: "summary - no labels",
 			path: "/",
 			want: `
 # HELP http_request_duration_seconds duration of http requests
@@ -73,7 +75,7 @@ http_requests_total{code="200",method="GET",path="/"} 1
 `,
 		},
 		{
-			name:         "all-in",
+			name:         "histogram - all-in",
 			namespace:    "foo",
 			subsystem:    "bar",
 			constLabels:  prometheus.Labels{"application": "app"},
@@ -102,7 +104,7 @@ foo_bar_http_requests_total{application="app",code="200",method="GET",path="/"} 
 `,
 		},
 		{
-			name:         "subst path",
+			name:         "histogram - subst path",
 			namespace:    "foo",
 			subsystem:    "bar",
 			constLabels:  prometheus.Labels{"application": "app"},
@@ -131,7 +133,7 @@ foo_bar_http_requests_total{application="app",code="200",method="GET",path="/"} 
 `,
 		},
 		{
-			name:         "no labels",
+			name:         "histogram - no labels",
 			durationType: metrics.HistogramDuration,
 			path:         "/",
 			want: `
@@ -158,10 +160,10 @@ http_requests_total{code="200",method="GET",path="/"} 1
 `,
 		},
 		{
-			name:         "buckets",
-			path:         "/",
+			name:         "histogram - buckets",
 			durationType: metrics.HistogramDuration,
 			buckets:      []float64{0.1, 1, 2},
+			path:         "/",
 			want: `
 # HELP http_request_duration_seconds duration of http requests
 # TYPE http_request_duration_seconds histogram
@@ -177,6 +179,24 @@ http_request_duration_seconds_count{code="200",method="GET",path="/"} 1
 http_requests_total{code="200",method="GET",path="/"} 1
 `,
 		},
+		{
+			name:         "custom labels",
+			durationType: metrics.SummaryDuration,
+			labels: func(request *http.Request, i int) (string, string, string) {
+				return request.Method, "<redacted>", strconv.Itoa(i)
+			},
+			path: "/foo",
+			want: `
+# HELP http_request_duration_seconds duration of http requests
+# TYPE http_request_duration_seconds summary
+http_request_duration_seconds_sum{code="200",method="GET",path="<redacted>"} 1
+http_request_duration_seconds_count{code="200",method="GET",path="<redacted>"} 1
+
+# HELP http_requests_total total number of http requests
+# TYPE http_requests_total counter
+http_requests_total{code="200",method="GET",path="<redacted>"} 1
+`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -187,6 +207,7 @@ http_requests_total{code="200",method="GET",path="/"} 1
 				ConstLabels:  tt.constLabels,
 				DurationType: tt.durationType,
 				Buckets:      tt.buckets,
+				LabelValues:  tt.labels,
 			})
 			req := http.Request{Method: http.MethodGet, URL: &url.URL{Path: tt.path}}
 			m.Measure(&req, http.StatusOK, time.Second)
