@@ -13,17 +13,9 @@ type roundTripMeasurer struct {
 	metrics metrics.RequestMetrics
 }
 
-// WithRequestMetrics creates a [http.RoundTripper] that measures requests count and duration.
+// WithRequestMetrics creates a [http.RoundTripper] that measures request count and duration.
 // The caller must register the metrics with a Prometheus registry.
 func WithRequestMetrics(m metrics.RequestMetrics) Option {
-	return WithInstrumentedRoundTripper(m)
-}
-
-// WithInstrumentedRoundTripper creates a [http.RoundTripper] that records requests metrics to the provided [metrics.RequestMetrics].
-// The caller must register the metrics with a Prometheus registry.
-//
-// deprecated: use WithRequestMetrics instead.
-func WithInstrumentedRoundTripper(m metrics.RequestMetrics) Option {
 	return func(next http.RoundTripper) http.RoundTripper {
 		return &roundTripMeasurer{
 			next:    next,

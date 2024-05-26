@@ -12,29 +12,41 @@ import (
 	"time"
 )
 
-// WithCache creates a RoundTripper that caches the HTTP responses. table determines the caching behaviour per target path.
-// If table is empty, all responses are cached for defaultExpiry amount of time.
-// If table is not empty, only requests that match an entry in the table are cached, for the amount of time specified in the table's entry.
-//
-// Expired entries are periodically removed from the cache as per CleanupInterval. If CleanupInterval is zero,
-// expired entries will never be removed.
-func WithCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) Option {
-	return WithInstrumentedCache(table, defaultExpiry, cleanupInterval, nil)
+// CacheOptions contains configuration options for a caching roundTripper.
+type CacheOptions struct {
+	// CacheTable determines which requests are cached and for how long. If empty, all requests are cached.
+	CacheTable
+	// DefaultExpiration defines how long requests are cached when CacheTable is empty.
+	DefaultExpiration time.Duration
+	// CleanupInterval defines how often the cache is scrubbed (i.e. when stale requests are removed).
+	// If zero, stale requests are never removed.
+	CleanupInterval time.Duration
+	// GetKey returns the cache key for a request. By default, the request's Path & Method are used.
+	GetKey func(*http.Request) string
+	// Metrics contains the Prometheus metrics for the cache. The caller must register the requests with a Prometheus registry.
+	// If nil, no metrics are collected.
+	CacheMetrics
 }
 
-// WithInstrumentedCache causes RoundTripper to cache the HTTP responses, as WithCache.  Additionally, it measures how often
-// the cache was consulted and hit as Prometheus metrics.
-//
-// namespace and subsystem are prepended to the metric names, e.g. api_errors_total will be called foo_bar_api_errors_total
-// if namespace and subsystem are set to foo and bar respectively. Application will be set in the metrics' application label.
-//
-// If namespace, subsystem and application are blank, the call is equivalent to calling WithCache, i.e. no metrics are created.
-func WithInstrumentedCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration, metrics CacheMetrics) Option {
+// WithCache creates a RoundTripper that caches the HTTP responses. See CacheOptions for the available options.
+func WithCache(options CacheOptions) Option {
+	if options.GetKey == nil {
+		options.GetKey = func(r *http.Request) string {
+			return r.Method + "|" + r.URL.Path
+		}
+	}
+	c := responseCache{
+		table: options.CacheTable,
+		cache: cache.New[string, []byte](options.DefaultExpiration, options.CleanupInterval),
+	}
+	c.table.mustCompile()
+
 	return func(next http.RoundTripper) http.RoundTripper {
 		c := cachingRoundTripper{
 			next:    next,
-			cache:   newResponseCache(table, defaultExpiry, cleanupInterval),
-			metrics: metrics,
+			cache:   c,
+			getKey:  options.GetKey,
+			metrics: options.CacheMetrics,
 		}
 		return &c
 	}
@@ -44,12 +56,14 @@ var _ http.RoundTripper = &cachingRoundTripper{}
 
 type cachingRoundTripper struct {
 	next    http.RoundTripper
-	cache   *responseCache
+	cache   responseCache
+	getKey  func(*http.Request) string
 	metrics CacheMetrics
 }
 
 func (c *cachingRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
-	cacheKey, response, found, err := c.cache.get(request)
+	cacheKey := c.getKey(request)
+	response, found, err := c.cache.get(cacheKey, request)
 	if c.metrics != nil {
 		c.metrics.Measure(request, found)
 	}
@@ -62,6 +76,126 @@ func (c *cachingRoundTripper) RoundTrip(request *http.Request) (*http.Response, 
 	}
 
 	return response, err
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// CacheTable defines which responses are cached. If table is empty, all responses will be cached.
+type CacheTable []*CacheTableEntry
+
+// DefaultCacheTable caches all requests.
+var DefaultCacheTable CacheTable
+
+func (c CacheTable) shouldCache(r *http.Request) (bool, time.Duration) {
+	if len(c) == 0 {
+		return true, 0
+	}
+
+	for _, entry := range c {
+		if match, expiry := entry.shouldCache(r); match {
+			return match, expiry
+		}
+	}
+	return false, 0
+}
+
+func (c CacheTable) mustCompile() {
+	for _, entry := range c {
+		entry.mustCompile()
+	}
+}
+
+// CacheTableEntry contains a single endpoint that should be cached. If the Path is a regular expression, IsRegExp must be true.
+type CacheTableEntry struct {
+	// Path is the URL Path for requests whose responses should be cached. If blank, all paths will be cached.
+	// Can be a literal path, or a regular expression. In the latter case, set IsRegExp to true
+	Path string
+	// Methods is the list of HTTP Methods for which requests the response should be cached.
+	// If empty, requests for any method will be cached.
+	Methods []string
+	// IsRegExp indicates if the Path is a regular expression.
+	// CacheTableEntry will panic if Path does not contain a valid regular expression.
+	IsRegExp bool
+	// Expiry indicates how long a response should be cached.
+	Expiry         time.Duration
+	compiledRegExp *regexp.Regexp
+}
+
+func (entry *CacheTableEntry) shouldCache(r *http.Request) (bool, time.Duration) {
+	if entry.matchesPath(r) && entry.matchesMethod(r) {
+		return true, entry.Expiry
+	}
+	return false, 0
+}
+
+func (entry *CacheTableEntry) matchesPath(r *http.Request) bool {
+	if entry.Path == "" {
+		return true
+	}
+	path := r.URL.Path
+	if entry.IsRegExp {
+		return entry.compiledRegExp.MatchString(path)
+	}
+	return entry.Path == path
+}
+
+func (entry *CacheTableEntry) matchesMethod(r *http.Request) bool {
+	if len(entry.Methods) == 0 {
+		return true
+	}
+	for _, method := range entry.Methods {
+		if method == r.Method {
+			return true
+		}
+	}
+	return false
+}
+
+func (entry *CacheTableEntry) mustCompile() {
+	if !entry.IsRegExp {
+		return
+	}
+	var err error
+	if entry.compiledRegExp, err = regexp.Compile(entry.Path); err != nil {
+		panic(fmt.Errorf("cacheTable: invalid regexp '%s': %w", entry.Path, err))
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+type responseCache struct {
+	table CacheTable
+	cache *cache.Cache[string, []byte]
+}
+
+func (c *responseCache) get(key string, req *http.Request) (resp *http.Response, ok bool, err error) {
+	var body []byte
+	if body, ok = c.cache.Get(key); ok {
+		r := bufio.NewReader(bytes.NewReader(body))
+		resp, err = http.ReadResponse(r, req)
+	}
+	return resp, ok, err
+}
+
+func (c *responseCache) put(key string, req *http.Request, resp *http.Response) error {
+	shouldCache, expiry := c.shouldCache(req)
+	if !shouldCache {
+		return nil
+	}
+
+	buf, err := httputil.DumpResponse(resp, true)
+	if err == nil {
+		c.cache.AddWithExpiry(key, buf, expiry)
+	}
+	return err
+}
+
+func (c *responseCache) shouldCache(r *http.Request) (bool, time.Duration) {
+	shouldCache, expiry := c.table.shouldCache(r)
+	if shouldCache && expiry == 0 {
+		expiry = c.cache.GetDefaultExpiration()
+	}
+	return shouldCache, expiry
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -118,143 +252,4 @@ func (m *defaultCacheMetrics) Describe(ch chan<- *prometheus.Desc) {
 func (m *defaultCacheMetrics) Collect(ch chan<- prometheus.Metric) {
 	m.cache.Collect(ch)
 	m.hits.Collect(ch)
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// CacheTable holds the endpoints that should be cached. If table is empty, all responses will be cached.
-type CacheTable []*CacheTableEntry
-
-// DefaultCacheTable is a CacheTable that caches all requests.
-var DefaultCacheTable CacheTable
-
-func (c CacheTable) shouldCache(r *http.Request) (match bool, expiry time.Duration) {
-	if len(c) == 0 {
-		return true, 0
-	}
-
-	for _, entry := range c {
-		if match, expiry = entry.shouldCache(r); match {
-			return
-		}
-	}
-	return
-}
-
-func (c CacheTable) mustCompile() {
-	for _, entry := range c {
-		entry.mustCompile()
-	}
-}
-
-// CacheTableEntry contains a single endpoint that should be cached. If the Path is a regular expression, IsRegExp must be true.
-type CacheTableEntry struct {
-	// Path is the URL Path for requests whose responses should be cached.
-	// Can be a literal path, or a regular expression. In the latter case, set IsRegExp to true
-	Path string
-	// Methods is the list of HTTP Methods for which requests the response should be cached.
-	// If empty, requests for any method will be cached.
-	Methods []string
-	// IsRegExp indicates if the Path is a regular expression.
-	// CacheTableEntry will panic if Path does not contain a valid regular expression.
-	IsRegExp bool
-	// Expiry indicates how long a response should be cached.
-	Expiry         time.Duration
-	compiledRegExp *regexp.Regexp
-}
-
-// var CacheEverything []CacheTableEntry
-
-func (entry *CacheTableEntry) shouldCache(r *http.Request) (match bool, expiry time.Duration) {
-	match = entry.matchesPath(r)
-	if !match {
-		return
-	}
-	match = entry.matchesMethod(r)
-	return match, entry.Expiry
-}
-
-func (entry *CacheTableEntry) matchesPath(r *http.Request) bool {
-	path := r.URL.Path
-	if entry.IsRegExp {
-		return entry.compiledRegExp.MatchString(path)
-	}
-	return entry.Path == path
-}
-
-func (entry *CacheTableEntry) matchesMethod(r *http.Request) bool {
-	if len(entry.Methods) == 0 {
-		return true
-	}
-	for _, method := range entry.Methods {
-		if method == r.Method {
-			return true
-		}
-	}
-	return false
-}
-
-func (entry *CacheTableEntry) mustCompile() {
-	if !entry.IsRegExp {
-		return
-	}
-	var err error
-	if entry.compiledRegExp, err = regexp.Compile(entry.Path); err != nil {
-		panic(fmt.Errorf("cacheTable: invalid regexp '%s': %w", entry.Path, err))
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-type responseCache struct {
-	table CacheTable
-	cache *cache.Cache[string, []byte]
-}
-
-func newResponseCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) *responseCache {
-	c := &responseCache{
-		table: table,
-		cache: cache.New[string, []byte](defaultExpiry, cleanupInterval),
-	}
-	c.table.mustCompile()
-	return c
-}
-
-func (c *responseCache) get(req *http.Request) (string, *http.Response, bool, error) {
-	key := getCacheKey(req)
-	body, found := c.cache.Get(key)
-	if !found {
-		return key, nil, false, nil
-	}
-
-	r := bufio.NewReader(bytes.NewReader(body))
-	resp, err := http.ReadResponse(r, req)
-	return key, resp, found, err
-}
-
-func (c *responseCache) put(key string, req *http.Request, resp *http.Response) error {
-	shouldCache, expiry := c.shouldCache(req)
-	if !shouldCache {
-		return nil
-	}
-
-	buf, err := httputil.DumpResponse(resp, true)
-	if err == nil {
-		c.cache.AddWithExpiry(key, buf, expiry)
-	}
-	return err
-}
-
-func (c *responseCache) shouldCache(r *http.Request) (bool, time.Duration) {
-	shouldCache, expiry := c.table.shouldCache(r)
-	if shouldCache && expiry == 0 {
-		expiry = c.cache.GetDefaultExpiration()
-	}
-	return shouldCache, expiry
-}
-
-// TODO: allow this to be overridden
-
-func getCacheKey(r *http.Request) string {
-	return r.Method + " | " + r.URL.Path
 }

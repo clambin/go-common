@@ -12,8 +12,9 @@ import (
 
 func TestWithCache(t *testing.T) {
 	s := server{}
+	o := roundtripper.CacheOptions{CacheTable: roundtripper.DefaultCacheTable}
 	r := roundtripper.New(
-		roundtripper.WithCache(roundtripper.DefaultCacheTable, 0, 0),
+		roundtripper.WithCache(o),
 		roundtripper.WithRoundTripper(&s),
 	)
 
@@ -35,8 +36,9 @@ func TestWithCache(t *testing.T) {
 func TestWithInstrumentedCache(t *testing.T) {
 	s := server{}
 	m := roundtripper.NewCacheMetrics("foo", "bar", "snafu")
+	o := roundtripper.CacheOptions{CacheTable: roundtripper.DefaultCacheTable, CacheMetrics: m}
 	r := roundtripper.New(
-		roundtripper.WithInstrumentedCache(roundtripper.DefaultCacheTable, 0, 0, m),
+		roundtripper.WithCache(o),
 		roundtripper.WithRoundTripper(&s),
 	)
 
@@ -71,7 +73,7 @@ func BenchmarkWithCache(b *testing.B) {
 		body.WriteString("hello\n")
 	}
 	rt := roundtripper.New(
-		roundtripper.WithCache(roundtripper.DefaultCacheTable, time.Minute, 0),
+		roundtripper.WithCache(roundtripper.CacheOptions{CacheTable: roundtripper.DefaultCacheTable, DefaultExpiration: time.Minute}),
 		roundtripper.WithRoundTripper(roundtripper.RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(&body)}, nil
 		})),

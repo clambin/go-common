@@ -19,6 +19,11 @@ func TestCacheTable_shouldCache(t *testing.T) {
 			Expiry:  time.Minute,
 		},
 		{
+			Path:    "",
+			Methods: []string{http.MethodPost},
+			Expiry:  time.Minute,
+		},
+		{
 			Path:     "/snafu/[a-z]+",
 			IsRegExp: true,
 			Expiry:   time.Hour,
@@ -51,6 +56,13 @@ func TestCacheTable_shouldCache(t *testing.T) {
 			method: http.MethodPut,
 			url:    "/bar",
 			cache:  false,
+		},
+		{
+			name:     "empty path matches",
+			method:   http.MethodPost,
+			url:      "/snafu",
+			cache:    true,
+			duration: time.Minute,
 		},
 		{
 			name:     "regexp",
