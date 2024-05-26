@@ -12,114 +12,119 @@ type RequestMetrics interface {
 	prometheus.Collector
 }
 
-var _ RequestMetrics = RequestSummaryMetrics{}
-
-type RequestSummaryMetrics struct {
-	requests *prometheus.CounterVec
-	duration *prometheus.SummaryVec
-}
-
 const (
 	RequestTotal     = "http_requests_total"
 	RequestsDuration = "http_request_duration_seconds"
 )
 
-func NewRequestSummaryMetrics(namespace, subsystem string, constLabels prometheus.Labels) *RequestSummaryMetrics {
-	return &RequestSummaryMetrics{
-		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace:   namespace,
-			Subsystem:   subsystem,
-			Name:        RequestTotal,
-			Help:        "total number of http requests",
-			ConstLabels: constLabels,
-		},
-			[]string{"method", "path", "code"},
-		),
-		duration: prometheus.NewSummaryVec(prometheus.SummaryOpts{
-			Namespace:   namespace,
-			Subsystem:   subsystem,
+type DurationType int
+
+const (
+	SummaryDuration DurationType = iota
+	HistogramDuration
+)
+
+type Options struct {
+	Namespace   string
+	Subsystem   string
+	ConstLabels prometheus.Labels
+	DurationType
+	Buckets     []float64
+	MakeMetrics func() (CounterMetric, DurationMetric)
+	Labels      func(req *http.Request, statusCode int, _ time.Duration) []string
+}
+
+func NewRequestMetrics(o Options) RequestMetrics {
+	var r CounterMetric
+	var d DurationMetric
+
+	if len(o.Buckets) == 0 {
+		o.Buckets = prometheus.DefBuckets
+	}
+
+	if o.MakeMetrics != nil {
+		r, d = o.MakeMetrics()
+		return requestMetrics{
+			CounterMetric:  r,
+			DurationMetric: d,
+		}
+	}
+
+	r = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace:   o.Namespace,
+		Subsystem:   o.Subsystem,
+		Name:        RequestTotal,
+		Help:        "total number of http requests",
+		ConstLabels: o.ConstLabels,
+	},
+		[]string{"method", "path", "code"},
+	)
+
+	switch o.DurationType {
+	case SummaryDuration:
+		d = prometheus.NewSummaryVec(prometheus.SummaryOpts{
+			Namespace:   o.Namespace,
+			Subsystem:   o.Subsystem,
 			Name:        RequestsDuration,
 			Help:        "duration of http requests",
-			ConstLabels: constLabels,
+			ConstLabels: o.ConstLabels,
 		},
 			[]string{"method", "path", "code"},
-		),
+		)
+	case HistogramDuration:
+		d = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace:   o.Namespace,
+			Subsystem:   o.Subsystem,
+			Name:        RequestsDuration,
+			Help:        "duration of http requests",
+			ConstLabels: o.ConstLabels,
+			Buckets:     o.Buckets,
+		},
+			[]string{"method", "path", "code"},
+		)
 	}
-}
 
-func (m RequestSummaryMetrics) Measure(req *http.Request, statusCode int, duration time.Duration) {
-	code := strconv.Itoa(statusCode)
-	path := req.URL.Path
-	if path == "" {
-		path = "/"
-	}
-	m.requests.WithLabelValues(req.Method, path, code).Inc()
-	m.duration.WithLabelValues(req.Method, path, code).Observe(duration.Seconds())
-}
-
-func (m RequestSummaryMetrics) Describe(ch chan<- *prometheus.Desc) {
-	m.requests.Describe(ch)
-	m.duration.Describe(ch)
-}
-
-func (m RequestSummaryMetrics) Collect(ch chan<- prometheus.Metric) {
-	m.requests.Collect(ch)
-	m.duration.Collect(ch)
+	return requestMetrics{CounterMetric: r, DurationMetric: d}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-var _ RequestMetrics = RequestHistogramMetrics{}
-
-type RequestHistogramMetrics struct {
-	requests *prometheus.CounterVec
-	duration *prometheus.HistogramVec
+type requestMetrics struct {
+	CounterMetric
+	DurationMetric
 }
 
-func NewRequestHistogramMetrics(namespace, subsystem string, constLabels prometheus.Labels, buckets ...float64) *RequestHistogramMetrics {
-	if len(buckets) == 0 {
-		buckets = prometheus.DefBuckets
-	}
-	return &RequestHistogramMetrics{
-		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace:   namespace,
-			Subsystem:   subsystem,
-			Name:        RequestTotal,
-			Help:        "total number of http requests",
-			ConstLabels: constLabels,
-		},
-			[]string{"method", "path", "code"},
-		),
-		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace:   namespace,
-			Subsystem:   subsystem,
-			Name:        RequestsDuration,
-			Help:        "duration of http requests",
-			ConstLabels: constLabels,
-			Buckets:     buckets,
-		},
-			[]string{"method", "path", "code"},
-		),
-	}
+type CounterMetric interface {
+	WithLabelValues(...string) prometheus.Counter
+	prometheus.Collector
 }
 
-func (m RequestHistogramMetrics) Measure(req *http.Request, statusCode int, duration time.Duration) {
+type DurationMetric interface {
+	WithLabelValues(...string) prometheus.Observer
+	prometheus.Collector
+}
+
+func (m requestMetrics) Labels(req *http.Request, statusCode int, _ time.Duration) []string {
 	code := strconv.Itoa(statusCode)
 	path := req.URL.Path
 	if path == "" {
 		path = "/"
 	}
-	m.requests.WithLabelValues(req.Method, path, code).Inc()
-	m.duration.WithLabelValues(req.Method, path, code).Observe(duration.Seconds())
-
+	return []string{req.Method, path, code}
 }
 
-func (m RequestHistogramMetrics) Describe(ch chan<- *prometheus.Desc) {
-	m.requests.Describe(ch)
-	m.duration.Describe(ch)
+func (m requestMetrics) Measure(req *http.Request, statusCode int, duration time.Duration) {
+	labels := m.Labels(req, statusCode, duration)
+	m.CounterMetric.WithLabelValues(labels...).Inc()
+	m.DurationMetric.WithLabelValues(labels...).Observe(duration.Seconds())
 }
 
-func (m RequestHistogramMetrics) Collect(ch chan<- prometheus.Metric) {
-	m.requests.Collect(ch)
-	m.duration.Collect(ch)
+func (m requestMetrics) Describe(ch chan<- *prometheus.Desc) {
+	m.CounterMetric.Describe(ch)
+	m.DurationMetric.Describe(ch)
+}
+
+func (m requestMetrics) Collect(ch chan<- prometheus.Metric) {
+	m.CounterMetric.Collect(ch)
+	m.DurationMetric.Collect(ch)
 }
