@@ -68,8 +68,12 @@ foo_bar_http_requests_total{application="snafu",code="404",method="GET",path="/"
 			if tt.application != "" {
 				labels = map[string]string{"application": tt.application}
 			}
-			m := metrics.NewRequestSummaryMetrics("foo", "bar", labels)
-
+			m := metrics.NewRequestMetrics(metrics.Options{
+				Namespace:    "foo",
+				Subsystem:    "bar",
+				ConstLabels:  labels,
+				DurationType: metrics.SummaryDuration,
+			})
 			h := middleware.WithRequestMetrics(m)(
 				http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 					writer.WriteHeader(tt.code)
@@ -148,7 +152,12 @@ foo_bar_http_requests_total{application="snafu",code="404",method="GET",path="/"
 			if tt.application != "" {
 				labels = map[string]string{"application": tt.application}
 			}
-			m := metrics.NewRequestHistogramMetrics("foo", "bar", labels)
+			m := metrics.NewRequestMetrics(metrics.Options{
+				Namespace:    "foo",
+				Subsystem:    "bar",
+				ConstLabels:  labels,
+				DurationType: metrics.HistogramDuration,
+			})
 
 			h := middleware.WithRequestMetrics(m)(
 				http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
