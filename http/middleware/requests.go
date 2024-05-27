@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"github.com/clambin/go-common/http/metrics"
-	"github.com/prometheus/client_golang/prometheus"
 	"net/http"
 	"time"
 )
@@ -11,15 +10,10 @@ var _ http.Handler = requestMetricsHandler{}
 
 type requestMetricsHandler struct {
 	next    http.Handler
-	metrics RequestMetrics
+	metrics metrics.RequestMetrics
 }
 
-type RequestMetrics interface {
-	Measure(req *http.Request, statusCode int, duration time.Duration)
-	prometheus.Collector
-}
-
-func WithRequestMetrics(m RequestMetrics) func(next http.Handler) http.Handler {
+func WithRequestMetrics(m metrics.RequestMetrics) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return requestMetricsHandler{next: next, metrics: m}
 	}
