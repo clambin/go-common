@@ -58,7 +58,7 @@ inflight_requests_max{application="snafu"} 2
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := metrics.NewInflightMetric(tt.namespace, tt.subsystem, tt.constLabels)
+			m := metrics.NewInflightMetrics(tt.namespace, tt.subsystem, tt.constLabels)
 			m.Inc()
 			m.Inc()
 			m.Dec()

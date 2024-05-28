@@ -12,29 +12,41 @@ import (
 	"time"
 )
 
-// WithCache creates a RoundTripper that caches the HTTP responses. table determines the caching behaviour per target path.
-// If table is empty, all responses are cached for defaultExpiry amount of time.
-// If table is not empty, only requests that match an entry in the table are cached, for the amount of time specified in the table's entry.
-//
-// Expired entries are periodically removed from the cache as per CleanupInterval. If CleanupInterval is zero,
-// expired entries will never be removed.
-func WithCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) Option {
-	return WithInstrumentedCache(table, defaultExpiry, cleanupInterval, nil)
+// CacheOptions contains configuration options for a caching roundTripper.
+type CacheOptions struct {
+	// CacheTable determines which requests are cached and for how long. If empty, all requests are cached.
+	CacheTable
+	// DefaultExpiration defines how long requests are cached when CacheTable is empty.
+	DefaultExpiration time.Duration
+	// CleanupInterval defines how often the cache is scrubbed (i.e. when stale requests are removed).
+	// If zero, stale requests are never removed.
+	CleanupInterval time.Duration
+	// GetKey returns the cache key for a request. By default, the request's method and path are used.
+	GetKey func(*http.Request) string
+	// Metrics contains the Prometheus metrics for the cache. The caller must register the requests with a Prometheus registry.
+	// If nil, no metrics are collected.
+	CacheMetrics
 }
 
-// WithInstrumentedCache causes RoundTripper to cache the HTTP responses, as WithCache.  Additionally, it measures how often
-// the cache was consulted and hit as Prometheus metrics.
-//
-// namespace and subsystem are prepended to the metric names, e.g. api_errors_total will be called foo_bar_api_errors_total
-// if namespace and subsystem are set to foo and bar respectively. Application will be set in the metrics' application label.
-//
-// If namespace, subsystem and application are blank, the call is equivalent to calling WithCache, i.e. no metrics are created.
-func WithInstrumentedCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration, metrics CacheMetrics) Option {
+// WithCache creates a RoundTripper that caches the HTTP responses. See CacheOptions for the available options.
+func WithCache(options CacheOptions) Option {
+	if options.GetKey == nil {
+		options.GetKey = func(r *http.Request) string {
+			return r.Method + "|" + r.URL.Path
+		}
+	}
+	c := responseCache{
+		table: options.CacheTable,
+		cache: cache.New[string, []byte](options.DefaultExpiration, options.CleanupInterval),
+	}
+	c.table.mustCompile()
+
 	return func(next http.RoundTripper) http.RoundTripper {
 		c := cachingRoundTripper{
 			next:    next,
-			cache:   newResponseCache(table, defaultExpiry, cleanupInterval),
-			metrics: metrics,
+			cache:   c,
+			getKey:  options.GetKey,
+			metrics: options.CacheMetrics,
 		}
 		return &c
 	}
@@ -44,12 +56,14 @@ var _ http.RoundTripper = &cachingRoundTripper{}
 
 type cachingRoundTripper struct {
 	next    http.RoundTripper
-	cache   *responseCache
+	cache   responseCache
+	getKey  func(*http.Request) string
 	metrics CacheMetrics
 }
 
 func (c *cachingRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
-	cacheKey, response, found, err := c.cache.get(request)
+	cacheKey := c.getKey(request)
+	response, found, err := c.cache.get(cacheKey, request)
 	if c.metrics != nil {
 		c.metrics.Measure(request, found)
 	}
@@ -66,79 +80,23 @@ func (c *cachingRoundTripper) RoundTrip(request *http.Request) (*http.Response, 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-type CacheMetrics interface {
-	Measure(r *http.Request, found bool)
-	prometheus.Collector
-}
-
-var _ CacheMetrics = &defaultCacheMetrics{}
-
-type defaultCacheMetrics struct {
-	cache *prometheus.CounterVec // measures number of times the cache has been consulted
-	hits  *prometheus.CounterVec // measures the number of times the cache was used
-}
-
-func NewCacheMetrics(namespace, subsystem, application string) CacheMetrics {
-	var constLabels map[string]string
-	if application != "" {
-		constLabels = map[string]string{"application": application}
-	}
-	return &defaultCacheMetrics{
-		cache: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        prometheus.BuildFQName(namespace, subsystem, "http_cache_total"),
-			Help:        "Number of times the cache was consulted",
-			ConstLabels: constLabels,
-		}, []string{"path", "method"}),
-		hits: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        prometheus.BuildFQName(namespace, subsystem, "http_cache_hit_total"),
-			Help:        "Number of times the cache was used",
-			ConstLabels: constLabels,
-		}, []string{"path", "method"}),
-	}
-}
-
-var _ prometheus.Collector = &defaultCacheMetrics{}
-
-func (m *defaultCacheMetrics) Measure(r *http.Request, hit bool) {
-	path := r.URL.Path
-	if path == "" {
-		path = "/"
-	}
-	m.cache.WithLabelValues(path, r.Method).Inc()
-	if hit {
-		m.hits.WithLabelValues(path, r.Method).Inc()
-	}
-}
-
-func (m *defaultCacheMetrics) Describe(ch chan<- *prometheus.Desc) {
-	m.cache.Describe(ch)
-	m.hits.Describe(ch)
-}
-
-func (m *defaultCacheMetrics) Collect(ch chan<- prometheus.Metric) {
-	m.cache.Collect(ch)
-	m.hits.Collect(ch)
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// CacheTable holds the endpoints that should be cached. If table is empty, all responses will be cached.
+// CacheTable defines which responses are cached. If table is empty, all responses will be cached.
 type CacheTable []*CacheTableEntry
 
-// DefaultCacheTable is a CacheTable that caches all requests.
+// DefaultCacheTable caches all requests.
 var DefaultCacheTable CacheTable
 
-func (c CacheTable) shouldCache(r *http.Request) (match bool, expiry time.Duration) {
+func (c CacheTable) shouldCache(r *http.Request) (bool, time.Duration) {
 	if len(c) == 0 {
 		return true, 0
 	}
 
 	for _, entry := range c {
-		if match, expiry = entry.shouldCache(r); match {
-			return
+		if match, expiry := entry.shouldCache(r); match {
+			return match, expiry
 		}
 	}
-	return
+	return false, 0
 }
 
 func (c CacheTable) mustCompile() {
@@ -149,7 +107,7 @@ func (c CacheTable) mustCompile() {
 
 // CacheTableEntry contains a single endpoint that should be cached. If the Path is a regular expression, IsRegExp must be true.
 type CacheTableEntry struct {
-	// Path is the URL Path for requests whose responses should be cached.
+	// Path is the URL Path for requests whose responses should be cached. If blank, all paths will be cached.
 	// Can be a literal path, or a regular expression. In the latter case, set IsRegExp to true
 	Path string
 	// Methods is the list of HTTP Methods for which requests the response should be cached.
@@ -163,18 +121,17 @@ type CacheTableEntry struct {
 	compiledRegExp *regexp.Regexp
 }
 
-// var CacheEverything []CacheTableEntry
-
-func (entry *CacheTableEntry) shouldCache(r *http.Request) (match bool, expiry time.Duration) {
-	match = entry.matchesPath(r)
-	if !match {
-		return
+func (entry *CacheTableEntry) shouldCache(r *http.Request) (bool, time.Duration) {
+	if entry.matchesPath(r) && entry.matchesMethod(r) {
+		return true, entry.Expiry
 	}
-	match = entry.matchesMethod(r)
-	return match, entry.Expiry
+	return false, 0
 }
 
 func (entry *CacheTableEntry) matchesPath(r *http.Request) bool {
+	if entry.Path == "" {
+		return true
+	}
 	path := r.URL.Path
 	if entry.IsRegExp {
 		return entry.compiledRegExp.MatchString(path)
@@ -211,25 +168,13 @@ type responseCache struct {
 	cache *cache.Cache[string, []byte]
 }
 
-func newResponseCache(table CacheTable, defaultExpiry, cleanupInterval time.Duration) *responseCache {
-	c := &responseCache{
-		table: table,
-		cache: cache.New[string, []byte](defaultExpiry, cleanupInterval),
+func (c *responseCache) get(key string, req *http.Request) (resp *http.Response, ok bool, err error) {
+	var body []byte
+	if body, ok = c.cache.Get(key); ok {
+		r := bufio.NewReader(bytes.NewReader(body))
+		resp, err = http.ReadResponse(r, req)
 	}
-	c.table.mustCompile()
-	return c
-}
-
-func (c *responseCache) get(req *http.Request) (string, *http.Response, bool, error) {
-	key := getCacheKey(req)
-	body, found := c.cache.Get(key)
-	if !found {
-		return key, nil, false, nil
-	}
-
-	r := bufio.NewReader(bytes.NewReader(body))
-	resp, err := http.ReadResponse(r, req)
-	return key, resp, found, err
+	return resp, ok, err
 }
 
 func (c *responseCache) put(key string, req *http.Request, resp *http.Response) error {
@@ -253,8 +198,69 @@ func (c *responseCache) shouldCache(r *http.Request) (bool, time.Duration) {
 	return shouldCache, expiry
 }
 
-// TODO: allow this to be overridden
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-func getCacheKey(r *http.Request) string {
-	return r.Method + " | " + r.URL.Path
+type CacheMetrics interface {
+	Measure(r *http.Request, found bool)
+	prometheus.Collector
+}
+
+var _ CacheMetrics = &defaultCacheMetrics{}
+
+type defaultCacheMetrics struct {
+	cache   *prometheus.CounterVec // measures number of times the cache has been consulted
+	hits    *prometheus.CounterVec // measures the number of times the cache was used
+	getPath func(r *http.Request) string
+}
+
+// CacheMetricsOptions provides configuration options for NewCacheMetrics
+type CacheMetricsOptions struct {
+	// Namespace to prepend to the metric name
+	Namespace string
+	// Subsystem to prepend to the metric name
+	Subsystem string
+	// ConstLabels to add to the metric
+	ConstLabels prometheus.Labels
+	// GetPath returns the path to use in the metric's path label. Can be used to reduce metric cardinality when many paths are cached.
+	GetPath func(r *http.Request) string
+}
+
+// NewCacheMetrics returns CacheMetrics that measure the total cache attempts and the cache hits (both as Counters).
+func NewCacheMetrics(options CacheMetricsOptions) CacheMetrics {
+	if options.GetPath == nil {
+		options.GetPath = func(r *http.Request) string { return r.URL.Path }
+	}
+	return &defaultCacheMetrics{
+		cache: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        prometheus.BuildFQName(options.Namespace, options.Subsystem, "http_cache_total"),
+			Help:        "Number of times the cache was consulted",
+			ConstLabels: options.ConstLabels,
+		}, []string{"path", "method"}),
+		hits: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        prometheus.BuildFQName(options.Namespace, options.Subsystem, "http_cache_hit_total"),
+			Help:        "Number of times the cache was used",
+			ConstLabels: options.ConstLabels,
+		}, []string{"path", "method"}),
+		getPath: options.GetPath,
+	}
+}
+
+var _ prometheus.Collector = &defaultCacheMetrics{}
+
+func (m *defaultCacheMetrics) Measure(r *http.Request, hit bool) {
+	path := m.getPath(r)
+	m.cache.WithLabelValues(path, r.Method).Inc()
+	if hit {
+		m.hits.WithLabelValues(path, r.Method).Inc()
+	}
+}
+
+func (m *defaultCacheMetrics) Describe(ch chan<- *prometheus.Desc) {
+	m.cache.Describe(ch)
+	m.hits.Describe(ch)
+}
+
+func (m *defaultCacheMetrics) Collect(ch chan<- prometheus.Metric) {
+	m.cache.Collect(ch)
+	m.hits.Collect(ch)
 }

@@ -2,6 +2,7 @@ package roundtripper
 
 import (
 	"bytes"
+	"github.com/clambin/go-common/cache"
 	"io"
 	"net/http"
 	"testing"
@@ -65,13 +66,16 @@ func Test_responseCache(t *testing.T) {
 		},
 	}
 
-	table := CacheTable{{Path: "/foo", Methods: []string{http.MethodGet, http.MethodPost}}}
-	c := newResponseCache(table, time.Minute, 0)
+	c := responseCache{
+		table: CacheTable{{Path: "/foo", Methods: []string{http.MethodGet, http.MethodPost}}},
+		cache: cache.New[string, []byte](time.Minute, 0),
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest(tt.method, tt.url, nil)
-			key, _, found, err := c.get(req)
+			key := req.Method + "|" + req.URL.Path
+			_, found, err := c.get(key, req)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -101,14 +105,17 @@ func Test_responseCache(t *testing.T) {
 }
 
 func BenchmarkCachePut(b *testing.B) {
-	c := newResponseCache(DefaultCacheTable, time.Minute, 5*time.Minute)
+	c := responseCache{
+		table: DefaultCacheTable,
+		cache: cache.New[string, []byte](time.Minute, 0),
+	}
 	req, _ := http.NewRequest(http.MethodGet, "/", bytes.NewBufferString("this is a request"))
 	resp := http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewBufferString("this is a response")),
 		Request:    req,
 	}
-	key := getCacheKey(req)
+	key := req.Method + "|" + req.URL.Path
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -119,18 +126,22 @@ func BenchmarkCachePut(b *testing.B) {
 }
 
 func BenchmarkCacheGet(b *testing.B) {
-	c := newResponseCache(DefaultCacheTable, time.Minute, 5*time.Minute)
+	c := responseCache{
+		table: DefaultCacheTable,
+		cache: cache.New[string, []byte](time.Minute, 0),
+	}
 	req, _ := http.NewRequest(http.MethodGet, "/", bytes.NewBufferString("this is a request"))
 	resp := http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewBufferString("this is a response")),
 		Request:    req,
 	}
-	_ = c.put(getCacheKey(req), req, &resp)
+	key := req.Method + "|" + req.URL.Path
+	_ = c.put(key, req, &resp)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, ok, err := c.get(req)
+		_, ok, err := c.get(key, req)
 		if err != nil {
 			b.Fatal(err)
 		}

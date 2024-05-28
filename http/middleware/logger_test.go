@@ -13,10 +13,6 @@ import (
 )
 
 func TestLogger(t *testing.T) {
-	var out bytes.Buffer
-	l := testutils.NewTextLogger(&out, slog.LevelDebug)
-	slog.SetDefault(l)
-
 	tests := []struct {
 		name   string
 		level  slog.Level
@@ -45,6 +41,10 @@ func TestLogger(t *testing.T) {
 			want: `level=INFO msg="http request" client=127.0.0.1:5000 path=/ method=GET code=200 latency=`,
 		},
 	}
+
+	var out bytes.Buffer
+	l := testutils.NewTextLogger(&out, slog.LevelDebug)
+	slog.SetDefault(l)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

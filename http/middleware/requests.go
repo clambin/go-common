@@ -55,17 +55,17 @@ var _ http.Handler = requestMetricsHandler{}
 
 type inflightMetricsHandler struct {
 	next    http.Handler
-	metrics metrics.InFlightMetrics
+	metrics *metrics.InflightMetrics
 }
 
-func WithInflightMetrics(m metrics.InFlightMetrics) func(next http.Handler) http.Handler {
+func WithInflightMetrics(m *metrics.InflightMetrics) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return inflightMetricsHandler{next: next, metrics: m}
 	}
 }
 
-func (s inflightMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.metrics.Inc()
-	defer s.metrics.Dec()
-	s.next.ServeHTTP(w, r)
+func (h inflightMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.metrics.Inc()
+	defer h.metrics.Dec()
+	h.next.ServeHTTP(w, r)
 }

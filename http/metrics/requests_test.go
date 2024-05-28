@@ -2,29 +2,35 @@ package metrics_test
 
 import (
 	"github.com/clambin/go-common/http/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
-func TestNewRequestSummaryMetrics(t *testing.T) {
+func TestNewRequestMetrics(t *testing.T) {
 	tests := []struct {
-		name        string
-		namespace   string
-		subsystem   string
-		path        string
-		constLabels map[string]string
-		want        string
+		name         string
+		namespace    string
+		subsystem    string
+		constLabels  prometheus.Labels
+		durationType metrics.DurationType
+		buckets      []float64
+		labels       metrics.LabelValuesFunc
+		path         string
+		want         string
 	}{
 		{
-			name:        "all-in",
-			namespace:   "foo",
-			subsystem:   "bar",
-			path:        "/",
-			constLabels: map[string]string{"application": "app"},
+			name:         "summary - all-in",
+			namespace:    "foo",
+			subsystem:    "bar",
+			constLabels:  prometheus.Labels{"application": "app"},
+			durationType: metrics.SummaryDuration,
+			path:         "/",
 			want: `
 # HELP foo_bar_http_request_duration_seconds duration of http requests
 # TYPE foo_bar_http_request_duration_seconds summary
@@ -37,11 +43,12 @@ foo_bar_http_requests_total{application="app",code="200",method="GET",path="/"} 
 `,
 		},
 		{
-			name:        "subst path",
-			namespace:   "foo",
-			subsystem:   "bar",
-			path:        "",
-			constLabels: map[string]string{"application": "app"},
+			name:         "summary - subst path",
+			namespace:    "foo",
+			subsystem:    "bar",
+			constLabels:  prometheus.Labels{"application": "app"},
+			durationType: metrics.SummaryDuration,
+			path:         "",
 			want: `
 # HELP foo_bar_http_request_duration_seconds duration of http requests
 # TYPE foo_bar_http_request_duration_seconds summary
@@ -54,7 +61,7 @@ foo_bar_http_requests_total{application="app",code="200",method="GET",path="/"} 
 `,
 		},
 		{
-			name: "no labels",
+			name: "summary - no labels",
 			path: "/",
 			want: `
 # HELP http_request_duration_seconds duration of http requests
@@ -67,37 +74,13 @@ http_request_duration_seconds_count{code="200",method="GET",path="/"} 1
 http_requests_total{code="200",method="GET",path="/"} 1
 `,
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := metrics.NewRequestSummaryMetrics(tt.namespace, tt.subsystem, tt.constLabels)
-			req := http.Request{Method: http.MethodGet, URL: &url.URL{Path: tt.path}}
-			m.Measure(&req, http.StatusOK, time.Second)
-
-			if err := testutil.CollectAndCompare(m, strings.NewReader(tt.want)); err != nil {
-				t.Error(err)
-			}
-		})
-	}
-}
-
-func TestNewRequestHistogramMetrics(t *testing.T) {
-	tests := []struct {
-		name        string
-		namespace   string
-		subsystem   string
-		buckets     []float64
-		path        string
-		constLabels map[string]string
-		want        string
-	}{
 		{
-			name:        "all-in",
-			namespace:   "foo",
-			subsystem:   "bar",
-			path:        "/",
-			constLabels: map[string]string{"application": "app"},
+			name:         "histogram - all-in",
+			namespace:    "foo",
+			subsystem:    "bar",
+			constLabels:  prometheus.Labels{"application": "app"},
+			durationType: metrics.HistogramDuration,
+			path:         "/",
 			want: `
 # HELP foo_bar_http_request_duration_seconds duration of http requests
 # TYPE foo_bar_http_request_duration_seconds histogram
@@ -121,11 +104,12 @@ foo_bar_http_requests_total{application="app",code="200",method="GET",path="/"} 
 `,
 		},
 		{
-			name:        "subst path",
-			namespace:   "foo",
-			subsystem:   "bar",
-			path:        "",
-			constLabels: map[string]string{"application": "app"},
+			name:         "histogram - subst path",
+			namespace:    "foo",
+			subsystem:    "bar",
+			constLabels:  prometheus.Labels{"application": "app"},
+			durationType: metrics.HistogramDuration,
+			path:         "",
 			want: `
 # HELP foo_bar_http_request_duration_seconds duration of http requests
 # TYPE foo_bar_http_request_duration_seconds histogram
@@ -149,8 +133,9 @@ foo_bar_http_requests_total{application="app",code="200",method="GET",path="/"} 
 `,
 		},
 		{
-			name: "no labels",
-			path: "/",
+			name:         "histogram - no labels",
+			durationType: metrics.HistogramDuration,
+			path:         "/",
 			want: `
 # HELP http_request_duration_seconds duration of http requests
 # TYPE http_request_duration_seconds histogram
@@ -175,9 +160,10 @@ http_requests_total{code="200",method="GET",path="/"} 1
 `,
 		},
 		{
-			name:    "buckets",
-			path:    "/",
-			buckets: []float64{0.1, 1, 2},
+			name:         "histogram - buckets",
+			durationType: metrics.HistogramDuration,
+			buckets:      []float64{0.1, 1, 2},
+			path:         "/",
 			want: `
 # HELP http_request_duration_seconds duration of http requests
 # TYPE http_request_duration_seconds histogram
@@ -193,11 +179,36 @@ http_request_duration_seconds_count{code="200",method="GET",path="/"} 1
 http_requests_total{code="200",method="GET",path="/"} 1
 `,
 		},
+		{
+			name:         "custom labels",
+			durationType: metrics.SummaryDuration,
+			labels: func(request *http.Request, i int) (string, string, string) {
+				return request.Method, "<redacted>", strconv.Itoa(i)
+			},
+			path: "/foo",
+			want: `
+# HELP http_request_duration_seconds duration of http requests
+# TYPE http_request_duration_seconds summary
+http_request_duration_seconds_sum{code="200",method="GET",path="<redacted>"} 1
+http_request_duration_seconds_count{code="200",method="GET",path="<redacted>"} 1
+
+# HELP http_requests_total total number of http requests
+# TYPE http_requests_total counter
+http_requests_total{code="200",method="GET",path="<redacted>"} 1
+`,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := metrics.NewRequestHistogramMetrics(tt.namespace, tt.subsystem, tt.constLabels, tt.buckets...)
+			m := metrics.NewRequestMetrics(metrics.Options{
+				Namespace:    tt.namespace,
+				Subsystem:    tt.subsystem,
+				ConstLabels:  tt.constLabels,
+				DurationType: tt.durationType,
+				Buckets:      tt.buckets,
+				LabelValues:  tt.labels,
+			})
 			req := http.Request{Method: http.MethodGet, URL: &url.URL{Path: tt.path}}
 			m.Measure(&req, http.StatusOK, time.Second)
 
