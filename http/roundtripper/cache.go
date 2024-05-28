@@ -21,7 +21,7 @@ type CacheOptions struct {
 	// CleanupInterval defines how often the cache is scrubbed (i.e. when stale requests are removed).
 	// If zero, stale requests are never removed.
 	CleanupInterval time.Duration
-	// GetKey returns the cache key for a request. By default, the request's Path & Method are used.
+	// GetKey returns the cache key for a request. By default, the request's method and path are used.
 	GetKey func(*http.Request) string
 	// Metrics contains the Prometheus metrics for the cache. The caller must register the requests with a Prometheus registry.
 	// If nil, no metrics are collected.
@@ -208,36 +208,47 @@ type CacheMetrics interface {
 var _ CacheMetrics = &defaultCacheMetrics{}
 
 type defaultCacheMetrics struct {
-	cache *prometheus.CounterVec // measures number of times the cache has been consulted
-	hits  *prometheus.CounterVec // measures the number of times the cache was used
+	cache   *prometheus.CounterVec // measures number of times the cache has been consulted
+	hits    *prometheus.CounterVec // measures the number of times the cache was used
+	getPath func(r *http.Request) string
 }
 
-func NewCacheMetrics(namespace, subsystem, application string) CacheMetrics {
-	var constLabels map[string]string
-	if application != "" {
-		constLabels = map[string]string{"application": application}
+// CacheMetricsOptions provides configuration options for NewCacheMetrics
+type CacheMetricsOptions struct {
+	// Namespace to prepend to the metric name
+	Namespace string
+	// Subsystem to prepend to the metric name
+	Subsystem string
+	// ConstLabels to add to the metric
+	ConstLabels prometheus.Labels
+	// GetPath returns the path to use in the metric's path label. Can be used to reduce metric cardinality when many paths are cached.
+	GetPath func(r *http.Request) string
+}
+
+// NewCacheMetrics returns CacheMetrics that measure the total cache attempts and the cache hits (both as Counters).
+func NewCacheMetrics(options CacheMetricsOptions) CacheMetrics {
+	if options.GetPath == nil {
+		options.GetPath = func(r *http.Request) string { return r.URL.Path }
 	}
 	return &defaultCacheMetrics{
 		cache: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        prometheus.BuildFQName(namespace, subsystem, "http_cache_total"),
+			Name:        prometheus.BuildFQName(options.Namespace, options.Subsystem, "http_cache_total"),
 			Help:        "Number of times the cache was consulted",
-			ConstLabels: constLabels,
+			ConstLabels: options.ConstLabels,
 		}, []string{"path", "method"}),
 		hits: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        prometheus.BuildFQName(namespace, subsystem, "http_cache_hit_total"),
+			Name:        prometheus.BuildFQName(options.Namespace, options.Subsystem, "http_cache_hit_total"),
 			Help:        "Number of times the cache was used",
-			ConstLabels: constLabels,
+			ConstLabels: options.ConstLabels,
 		}, []string{"path", "method"}),
+		getPath: options.GetPath,
 	}
 }
 
 var _ prometheus.Collector = &defaultCacheMetrics{}
 
 func (m *defaultCacheMetrics) Measure(r *http.Request, hit bool) {
-	path := r.URL.Path
-	if path == "" {
-		path = "/"
-	}
+	path := m.getPath(r)
 	m.cache.WithLabelValues(path, r.Method).Inc()
 	if hit {
 		m.hits.WithLabelValues(path, r.Method).Inc()
