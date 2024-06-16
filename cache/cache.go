@@ -90,6 +90,22 @@ func (c *Cache[K, V]) Remove(key K) {
 	delete(c.values, key)
 }
 
+// GetAndRemove returns the value from the cache and removes it in one atomic operation.
+func (c *Cache[K, V]) GetAndRemove(key K) (V, bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	var value V
+	e, found := c.values[key]
+	if found {
+		if found = !e.isExpired(); found {
+			value = e.value
+		}
+		delete(c.values, key)
+	}
+	return value, found
+}
+
 // GetKeys returns all keys in the cache.
 func (c *Cache[K, V]) GetKeys() (keys []K) {
 	c.lock.RLock()

@@ -42,13 +42,12 @@ func WithCache(options CacheOptions) Option {
 	c.table.mustCompile()
 
 	return func(next http.RoundTripper) http.RoundTripper {
-		c := cachingRoundTripper{
+		return &cachingRoundTripper{
 			next:    next,
 			cache:   c,
 			getKey:  options.GetKey,
 			metrics: options.CacheMetrics,
 		}
-		return &c
 	}
 }
 
@@ -67,12 +66,10 @@ func (c *cachingRoundTripper) RoundTrip(request *http.Request) (*http.Response, 
 	if c.metrics != nil {
 		c.metrics.Measure(request, found)
 	}
-	if found || err != nil {
-		return response, err
-	}
-
-	if response, err = c.next.RoundTrip(request); err == nil {
-		err = c.cache.put(cacheKey, request, response)
+	if err == nil && !found {
+		if response, err = c.next.RoundTrip(request); err == nil {
+			err = c.cache.put(cacheKey, request, response)
+		}
 	}
 
 	return response, err
@@ -244,8 +241,6 @@ func NewCacheMetrics(options CacheMetricsOptions) CacheMetrics {
 		getPath: options.GetPath,
 	}
 }
-
-var _ prometheus.Collector = &defaultCacheMetrics{}
 
 func (m *defaultCacheMetrics) Measure(r *http.Request, hit bool) {
 	path := m.getPath(r)

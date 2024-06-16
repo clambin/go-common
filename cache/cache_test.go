@@ -17,6 +17,7 @@ func TestCache(t *testing.T) {
 		t.Error("default expiration was incorrect")
 	}
 
+	// Add a value
 	c.Add("foo", "bar")
 	value, found := c.Get("foo")
 	if !found {
@@ -26,6 +27,7 @@ func TestCache(t *testing.T) {
 		t.Error("value was not bar")
 	}
 
+	// Overwrite an existing value
 	c.Add("foo", "foo")
 	value, found = c.Get("foo")
 	if !found {
@@ -35,6 +37,7 @@ func TestCache(t *testing.T) {
 		t.Error("value was not foo")
 	}
 
+	// Verify Len & Size
 	if c.Len() != 1 {
 		t.Error("cache length should be 1")
 	}
@@ -42,8 +45,23 @@ func TestCache(t *testing.T) {
 		t.Error("cache size should be 1")
 	}
 
+	// Remove a value
 	c.Remove("foo")
 	if _, found = c.Get("foo"); found {
+		t.Error("foo was found")
+	}
+
+	// GetAndRemove a value
+	c.Add("foo", "bar")
+	value, found = c.GetAndRemove("foo")
+	if !found {
+		t.Error("foo was not found")
+	}
+	if value != "bar" {
+		t.Error("value was not bar")
+	}
+	_, found = c.Get("foo")
+	if found {
 		t.Error("foo was found")
 	}
 }
