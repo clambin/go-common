@@ -6,7 +6,7 @@ require (
 	github.com/clambin/go-common/cache v0.5.0
 	github.com/clambin/go-common/testutils v0.1.0
 	github.com/prometheus/client_golang v1.20.0
-	golang.org/x/sync v0.7.0
+	golang.org/x/sync v0.8.0
 )
 
 require (
