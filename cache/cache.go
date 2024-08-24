@@ -107,14 +107,20 @@ func (c *Cache[K, V]) GetAndRemove(key K) (V, bool) {
 }
 
 // GetKeys returns all keys in the cache.
+//
+// Deprecated: use Keys() instead
 func (c *Cache[K, V]) GetKeys() (keys []K) {
+	return c.Keys()
+}
+
+func (c *Cache[K, V]) Keys() []K {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
-
+	keys := make([]K, 0, len(c.values))
 	for key := range c.values {
 		keys = append(keys, key)
 	}
-	return
+	return keys
 }
 
 // Size returns the current size of the cache. Expired items are counted
