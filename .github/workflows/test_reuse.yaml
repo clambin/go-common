@@ -19,8 +19,6 @@ jobs:
           - http
           - set
           - slackbot
-          - tabulator
-          - taskmanager
           - testutils
           - charmer
     steps:
