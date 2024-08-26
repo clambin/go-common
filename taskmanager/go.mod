@@ -3,7 +3,7 @@ module github.com/clambin/go-common/taskmanager
 go 1.20
 
 require (
-	github.com/prometheus/client_golang v1.20.1
+	github.com/prometheus/client_golang v1.20.2
 	github.com/stretchr/testify v1.9.0
 )
 
