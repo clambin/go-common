@@ -1,0 +1,26 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'cache/v*'
+      - 'http/v*'
+      - 'set/v*'
+      - 'slackbot/v*'
+      - 'testutils/v*'
+      - 'charmer/v*'
+
+jobs:
+  test:
+    uses: ./.github/workflows/test_reuse.yaml
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  release:
+    runs-on: ubuntu-latest
+    needs:
+      - test
+    steps:
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: false
