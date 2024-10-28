@@ -18,12 +18,6 @@ func New[T cmp.Ordered](values ...T) Set[T] {
 	return s
 }
 
-// Create creates a new set containing the optional values
-// Deprecated: use New() instead.
-func Create[T cmp.Ordered](values ...T) Set[T] {
-	return New(values...)
-}
-
 // Add adds value to the set
 func (s Set[T]) Add(value ...T) {
 	for i := range value {
@@ -81,12 +75,6 @@ func (s Set[T]) Clone() Set[T] {
 		return New[T]()
 	}
 	return maps.Clone(s)
-}
-
-// Copy returns a copy of the set
-// Deprecated: use Clone() instead.
-func (s Set[T]) Copy() Set[T] {
-	return s.Clone()
 }
 
 // Union returns a new set containing all values from setA and setB

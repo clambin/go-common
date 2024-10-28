@@ -19,7 +19,7 @@ func TestCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := set.Create(tt.input...).ListOrdered()
+			s := set.New(tt.input...).ListOrdered()
 			if !reflect.DeepEqual(s, tt.expected) {
 				t.Errorf("expected: %v, got %v", tt.expected, s)
 			}
@@ -146,7 +146,7 @@ func TestSet_Equals(t *testing.T) {
 	}
 }
 
-func TestSet_Copy(t *testing.T) {
+func TestSet_Clone(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    set.Set[string]
@@ -158,7 +158,7 @@ func TestSet_Copy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkEqual(t, tt.expected, tt.input.Copy())
+			checkEqual(t, tt.expected, tt.input.Clone())
 		})
 	}
 }
