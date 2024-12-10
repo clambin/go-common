@@ -2,7 +2,7 @@ package middleware_test
 
 import (
 	"bytes"
-	"github.com/clambin/go-common/http/middleware"
+	"github.com/clambin/go-common/httputils/middleware"
 	"github.com/clambin/go-common/testutils"
 	"log/slog"
 	"net/http"

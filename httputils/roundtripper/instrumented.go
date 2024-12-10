@@ -1,7 +1,7 @@
 package roundtripper
 
 import (
-	"github.com/clambin/go-common/http/metrics"
+	"github.com/clambin/go-common/httputils/metrics"
 	"net/http"
 	"time"
 )

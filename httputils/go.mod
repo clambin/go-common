@@ -1,14 +1,12 @@
-module github.com/clambin/go-common/http
+module github.com/clambin/go-common/httputils
 
 go 1.22
-
-toolchain go1.22.6
 
 require (
 	github.com/clambin/go-common/cache v0.7.1
 	github.com/clambin/go-common/testutils v0.2.0
-	github.com/prometheus/client_golang v1.20.4
-	golang.org/x/sync v0.8.0
+	github.com/prometheus/client_golang v1.20.5
+	golang.org/x/sync v0.10.0
 )
 
 require (

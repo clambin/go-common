@@ -3,7 +3,7 @@ package roundtripper_test
 import (
 	"bytes"
 	"errors"
-	"github.com/clambin/go-common/http/roundtripper"
+	"github.com/clambin/go-common/httputils/roundtripper"
 	"io"
 	"net/http"
 	"sync/atomic"

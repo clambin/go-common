@@ -3,8 +3,8 @@ package sema_test
 import (
 	"context"
 	"errors"
-	"github.com/clambin/go-common/http/pkg/testutils"
-	"github.com/clambin/go-common/http/roundtripper/internal/sema"
+	"github.com/clambin/go-common/httputils/roundtripper/internal/sema"
+	"github.com/clambin/go-common/testutils"
 	"testing"
 	"time"
 )

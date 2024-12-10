@@ -10,4 +10,6 @@
 // Applications can send messages as follows:
 //
 //	bot.Send(channel, []slack.Attachment{{Text: "Hello world"}})
+//
+// Deprecated: This package is no longer maintained, as it's based on legacy Slack connectivity that will soon be decommissioned.
 package slackbot

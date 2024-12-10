@@ -1,7 +1,7 @@
 package testutils_test
 
 import (
-	"github.com/clambin/go-common/http/pkg/testutils"
+	"github.com/clambin/go-common/testutils"
 	"testing"
 	"time"
 )

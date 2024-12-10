@@ -2,7 +2,7 @@ package roundtripper
 
 import (
 	"fmt"
-	"github.com/clambin/go-common/http/roundtripper/internal/sema"
+	"github.com/clambin/go-common/httputils/roundtripper/internal/sema"
 	"net/http"
 )
 

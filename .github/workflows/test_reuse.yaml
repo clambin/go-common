@@ -16,7 +16,7 @@ jobs:
           - '1.23'
         module:
           - cache
-          - http
+          - httputils
           - set
           - slackbot
           - testutils

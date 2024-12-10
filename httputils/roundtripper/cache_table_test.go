@@ -1,7 +1,7 @@
 package roundtripper
 
 import (
-	"github.com/clambin/go-common/http/pkg/testutils"
+	"github.com/clambin/go-common/testutils"
 	"net/http"
 	"testing"
 	"time"

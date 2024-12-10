@@ -9,7 +9,7 @@ import (
 var _ http.Handler = &TestServer{}
 
 // TestServer is a dummy http.Handler that can be used to create a httptest.Server.
-// TestServer serves HTTP requests, using [Path] to determine how to reply, where the key is matched again r.URL.Path.
+// TestServer serves HTTP requests, using [Path] to determine how to reply, by looking up r.URL.Path in Paths.
 // If no Path matches the request, TestServer returns HTTP 404
 type TestServer struct {
 	Paths map[string]Path

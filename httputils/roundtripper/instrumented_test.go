@@ -1,9 +1,9 @@
 package roundtripper_test
 
 import (
-	"github.com/clambin/go-common/http/metrics"
-	"github.com/clambin/go-common/http/pkg/testutils"
-	"github.com/clambin/go-common/http/roundtripper"
+	"github.com/clambin/go-common/httputils/metrics"
+	"github.com/clambin/go-common/httputils/roundtripper"
+	"github.com/clambin/go-common/testutils"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"net/http"
 	"strings"

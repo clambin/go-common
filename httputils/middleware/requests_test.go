@@ -1,9 +1,9 @@
 package middleware_test
 
 import (
-	"github.com/clambin/go-common/http/metrics"
-	"github.com/clambin/go-common/http/middleware"
-	"github.com/clambin/go-common/http/pkg/testutils"
+	"github.com/clambin/go-common/httputils/metrics"
+	"github.com/clambin/go-common/httputils/middleware"
+	"github.com/clambin/go-common/testutils"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"net/http"
 	"net/http/httptest"
