@@ -1,7 +1,8 @@
-package http
+package httputils_test
 
 import (
 	"context"
+	"github.com/clambin/go-common/httputils"
 	"net/http"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ func TestRunServer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error)
 	go func() {
-		errCh <- RunServer(ctx, &s)
+		errCh <- httputils.RunServer(ctx, &s)
 	}()
 
 	for {
