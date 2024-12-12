@@ -21,6 +21,7 @@ jobs:
           - slackbot
           - testutils
           - charmer
+          - pubsub
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -34,5 +35,5 @@ jobs:
       - uses: codecov/codecov-action@v5
         if: matrix.go-version == '1.23'
         with:
-          file: ${{ matrix.module}}/coverage.txt
+          files: ${{ matrix.module}}/coverage.txt
           token: ${{ secrets.CODECOV_TOKEN }}

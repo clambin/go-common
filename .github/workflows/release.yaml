@@ -9,6 +9,7 @@ on:
       - 'slackbot/v*'
       - 'testutils/v*'
       - 'charmer/v*'
+      - 'pubsub/v*'
 
 jobs:
   test:
