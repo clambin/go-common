@@ -31,3 +31,9 @@ func (p *Publisher[T]) Publish(data T) {
 		ch <- data
 	}
 }
+
+func (p *Publisher[T]) Subscribers() int {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+	return len(p.clients)
+}
