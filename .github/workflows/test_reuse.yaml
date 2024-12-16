@@ -18,7 +18,6 @@ jobs:
           - cache
           - httputils
           - set
-          - slackbot
           - testutils
           - charmer
           - pubsub
