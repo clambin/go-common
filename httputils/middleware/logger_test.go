@@ -3,7 +3,6 @@ package middleware_test
 import (
 	"bytes"
 	"github.com/clambin/go-common/httputils/middleware"
-	"github.com/clambin/go-common/testutils"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -43,8 +42,15 @@ func TestLogger(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	l := testutils.NewTextLogger(&out, slog.LevelDebug)
-	slog.SetDefault(l)
+	l := slog.New(slog.NewTextHandler(&out, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+			return a
+		},
+	}))
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

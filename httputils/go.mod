@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/clambin/go-common/cache v0.7.1
-	github.com/clambin/go-common/testutils v0.3.0
+	github.com/clambin/go-common/testutils v0.4.1
 	github.com/prometheus/client_golang v1.20.5
 	golang.org/x/sync v0.10.0
 )
