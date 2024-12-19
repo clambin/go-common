@@ -1,6 +1,8 @@
 package testutils
 
 import (
+	"cmp"
+	"encoding/json"
 	"maps"
 	"net/http"
 	"sync"
@@ -31,7 +33,7 @@ func (t *TestServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	t.count(r.URL.Path)
 	w.WriteHeader(path.statusCode())
-	_, _ = w.Write(path.Body)
+	path.writeBody(w)
 }
 
 func (t *TestServer) count(path string) {
@@ -69,8 +71,9 @@ type Path struct {
 	// StatusCode tells TestServer what HTTP status code to return for matching requests.
 	// If StatusCode is 0, TestServer returns HTTP 200.
 	StatusCode int
-	// Body is the body that TestServer will return for the Path.
-	Body []byte
+	// Body is the body that TestServer will return for the Path. If Body is a string, or a []byte, it is sent as is.
+	// Otherwise, it is marshalled as a JSON object.
+	Body any
 }
 
 func (p Path) validMethod(r *http.Request) bool {
@@ -86,8 +89,19 @@ func (p Path) validMethod(r *http.Request) bool {
 }
 
 func (p Path) statusCode() int {
-	if p.StatusCode == 0 {
-		return 200
+	return cmp.Or(p.StatusCode, http.StatusOK)
+}
+
+func (p Path) writeBody(w http.ResponseWriter) {
+	switch body := p.Body.(type) {
+	case string:
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte(body))
+	case []byte:
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write(body)
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(body)
 	}
-	return p.StatusCode
 }
