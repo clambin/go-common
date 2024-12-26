@@ -43,8 +43,10 @@ func SetLogger(cmd *cobra.Command, logger *slog.Logger) {
 // GetLogger returns the logger from the command's context. If no logger was set, it returns slog.Default().
 func GetLogger(cmd *cobra.Command) *slog.Logger {
 	if ctx := cmd.Context(); ctx != nil {
-		if l := ctx.Value(logCtx); l != nil {
-			return l.(*slog.Logger)
+		if v := ctx.Value(logCtx); v != nil {
+			if l, ok := v.(*slog.Logger); ok && l != nil {
+				return l
+			}
 		}
 	}
 	return slog.Default()
