@@ -9,23 +9,15 @@ updates:
     schedule:
       interval: "daily"
   - package-ecosystem: "gomod"
-    directory: "/http"
+    directory: "/httputils"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "gomod"
+    directory: "/pubsub"
     schedule:
       interval: "daily"
   - package-ecosystem: "gomod"
     directory: "/set"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "gomod"
-    directory: "/slackbot"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "gomod"
-    directory: "/tabulator"
-    schedule:
-      interval: "daily"
-  - package-ecosystem: "gomod"
-    directory: "/taskmanager"
     schedule:
       interval: "daily"
   - package-ecosystem: "gomod"
