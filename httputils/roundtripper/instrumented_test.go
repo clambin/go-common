@@ -3,7 +3,6 @@ package roundtripper_test
 import (
 	"github.com/clambin/go-common/httputils/metrics"
 	"github.com/clambin/go-common/httputils/roundtripper"
-	"github.com/clambin/go-common/testutils"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"net/http"
 	"strings"
@@ -95,26 +94,21 @@ foo_bar_http_requests_total{application="snafu",code="0",method="GET",path="/foo
 }
 
 func TestWithInflightMetrics(t *testing.T) {
-	s := server{delay: 500 * time.Millisecond}
 	m := metrics.NewInflightMetrics("foo", "bar", map[string]string{"application": "snafu"})
 	r := roundtripper.New(
 		roundtripper.WithInflightMetrics(m),
-		roundtripper.WithRoundTripper(&s),
+		roundtripper.WithRoundTripper(&server{delay: 500 * time.Millisecond}),
 	)
 
 	req, _ := http.NewRequest(http.MethodGet, "/", nil)
-	go func() {
-		_, _ = r.RoundTrip(req)
-	}()
-
-	if ok := testutils.Eventually(func() bool { return s.inFlight.Load() > 0 }, time.Second, 10*time.Millisecond); !ok {
-		t.Error("condition never satisfied")
+	if _, err := r.RoundTrip(req); err != nil {
+		t.Errorf("roundtripper.RoundTrip() error = %v, want pass %v", err, nil)
 	}
 
 	if err := testutil.CollectAndCompare(m, strings.NewReader(`
 # HELP foo_bar_inflight_requests number of requests currently in flight
 # TYPE foo_bar_inflight_requests gauge
-foo_bar_inflight_requests{application="snafu"} 1
+foo_bar_inflight_requests{application="snafu"} 0
 
 # HELP foo_bar_inflight_requests_max highest number of in flight requests
 # TYPE foo_bar_inflight_requests_max gauge

@@ -7,6 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -72,20 +73,23 @@ foo_bar_http_cache_total{application="snafu",method="GET",path="/"} 2
 	}
 }
 
+// Current:
+// BenchmarkWithCache-16    	 1000000	      1087 ns/op	    4516 B/op	       8 allocs/op
 func BenchmarkWithCache(b *testing.B) {
-	var body bytes.Buffer
-	for i := 0; i < 10000; i++ {
-		body.WriteString("hello\n")
-	}
 	rt := roundtripper.New(
 		roundtripper.WithCache(roundtripper.CacheOptions{CacheTable: roundtripper.DefaultCacheTable, DefaultExpiration: time.Minute}),
 		roundtripper.WithRoundTripper(roundtripper.RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
-			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(&body)}, nil
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(strings.Repeat("hello\n", 10_000))),
+			}, nil
 		})),
 	)
 
 	req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080", nil)
-	for i := 0; i < b.N; i++ {
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
 		_, err := rt.RoundTrip(req)
 		if err != nil {
 			b.Fatal(err)

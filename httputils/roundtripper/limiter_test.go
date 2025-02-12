@@ -1,7 +1,6 @@
 package roundtripper_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"github.com/clambin/go-common/httputils/roundtripper"
@@ -9,6 +8,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -23,7 +23,7 @@ func TestLimiter_RoundTrip(t *testing.T) {
 	}
 
 	var eg errgroup.Group
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		eg.Go(func() error {
 			_, err := c.Get("/")
 			return err
@@ -65,22 +65,20 @@ func TestLimiter_RoundTrip_Exceeded(t *testing.T) {
 	}
 }
 
+// Current:
+// BenchmarkWithLimiter-16    	  191450	     12661 ns/op	   44680 B/op	       4 allocs/op
 func BenchmarkWithLimiter(b *testing.B) {
-	var body bytes.Buffer
-	for i := 0; i < 10000; i++ {
-		body.WriteString("hello\n")
-	}
 	rt := roundtripper.WithLimiter(100)(roundtripper.RoundTripperFunc(func(request *http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(&body)}, nil
-
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(strings.Repeat("hello\n", 10_000)))}, nil
 	}))
 
 	req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080", nil)
 	var wg sync.WaitGroup
 
 	b.ResetTimer()
-	wg.Add(b.N)
-	for i := 0; i < b.N; i++ {
+	b.ReportAllocs()
+	for b.Loop() {
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			_, _ = rt.RoundTrip(req)

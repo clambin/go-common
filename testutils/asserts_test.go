@@ -16,18 +16,16 @@ func TestPanics(t *testing.T) {
 	if ok := testutils.Panics(func() {
 		return
 	}); ok {
-		t.Error("did not expected panic")
+		t.Error("unexpected panic")
 	}
 }
 
 func TestEventually(t *testing.T) {
-	ok := testutils.Eventually(func() bool { return true }, 100*time.Millisecond, time.Millisecond)
-	if !ok {
+	if ok := testutils.Eventually(func() bool { return true }, 100*time.Millisecond, time.Millisecond); !ok {
 		t.Error("expected true")
 	}
 
-	ok = testutils.Eventually(func() bool { return false }, 100*time.Millisecond, time.Millisecond)
-	if ok {
+	if ok := testutils.Eventually(func() bool { return false }, 100*time.Millisecond, time.Millisecond); ok {
 		t.Error("expected false")
 	}
 }

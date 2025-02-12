@@ -198,7 +198,7 @@ func (c *responseCache) shouldCache(r *http.Request) (bool, time.Duration) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 type CacheMetrics interface {
-	Measure(r *http.Request, found bool)
+	Measure(r *http.Request, hit bool)
 	prometheus.Collector
 }
 

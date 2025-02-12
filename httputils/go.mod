@@ -1,6 +1,6 @@
 module github.com/clambin/go-common/httputils
 
-go 1.22
+go 1.24
 
 require (
 	github.com/clambin/go-common/cache v0.7.1

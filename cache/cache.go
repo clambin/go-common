@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"context"
+	"iter"
 	"maps"
 	"runtime"
 	"sync"
@@ -13,6 +15,8 @@ type Cache[K comparable, V any] struct {
 	*scrubber[K, V]
 }
 
+// realCache implements the cache.  If Cache implemented the actual cache, the scrubber would always be referencing it
+// and the garbage collector would never remove it.
 type realCache[K comparable, V any] struct {
 	values     map[K]entry[V]
 	expiration time.Duration
@@ -41,11 +45,12 @@ func New[K comparable, V any](expiration, cleanup time.Duration) *Cache[K, V] {
 	if cleanup > 0 {
 		c.scrubber = &scrubber[K, V]{
 			period: cleanup,
-			halt:   make(chan struct{}),
 			cache:  c.realCache,
 		}
-		go c.scrubber.run()
-		runtime.SetFinalizer(c, stopScrubber[K, V])
+		ctx, cancel := context.WithCancel(context.Background())
+		go c.scrubber.run(ctx)
+		// stop the scrubber when Cache is garbage collected
+		runtime.AddCleanup(c, func(_ *scrubber[K, V]) { cancel() }, c.scrubber)
 	}
 	return c
 }
@@ -106,13 +111,6 @@ func (c *Cache[K, V]) GetAndRemove(key K) (V, bool) {
 	return value, found
 }
 
-// GetKeys returns all keys in the cache.
-//
-// Deprecated: use Keys() instead
-func (c *Cache[K, V]) GetKeys() (keys []K) {
-	return c.Keys()
-}
-
 func (c *Cache[K, V]) Keys() []K {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
@@ -149,11 +147,49 @@ func (c *Cache[K, V]) GetDefaultExpiration() time.Duration {
 	return c.expiration
 }
 
+// Iterate returns an iterator that yields all non-expired keys & they value.
+//
+// Note: the cache is locked while the iterator is running.
+func (c *Cache[K, V]) Iterate() iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		c.lock.RLock()
+		defer c.lock.RUnlock()
+
+		for k, e := range c.values {
+			if !e.isExpired() {
+				if !yield(k, e.value) {
+					return
+				}
+			}
+		}
+	}
+}
+
 func (c *realCache[K, V]) scrub() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-
 	maps.DeleteFunc(c.values, func(k K, e entry[V]) bool {
 		return e.isExpired()
 	})
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+type scrubber[K comparable, V any] struct {
+	period time.Duration
+	cache  *realCache[K, V]
+}
+
+func (s *scrubber[K, V]) run(ctx context.Context) {
+	ticker := time.NewTicker(s.period)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.cache.scrub()
+		case <-ctx.Done():
+			return
+		}
+	}
 }

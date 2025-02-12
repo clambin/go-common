@@ -96,7 +96,7 @@ func TestCache_AddWithExpiry(t *testing.T) {
 	c.AddWithExpiry("bar", 2, time.Hour)
 
 	want := []string{"bar", "foo"}
-	keys := c.GetKeys()
+	keys := c.Keys()
 	slices.Sort(keys)
 	if !slices.Equal(keys, want) {
 		t.Errorf("got keys %v, want %v", keys, want)
@@ -112,24 +112,58 @@ func TestCache_AddWithExpiry(t *testing.T) {
 	}
 }
 
+func TestCache_Iterate(t *testing.T) {
+	c := cache.New[string, string](time.Hour, 0)
+	c.Add("foo", "foo")
+	c.Add("bar", "bar")
+	c.AddWithExpiry("snafu", "snafu", -time.Hour)
+
+	// just doing this for code coverage
+	for range c.Iterate() {
+		break
+	}
+
+	var keys []string
+	for k, v := range c.Iterate() {
+		if k != v {
+			t.Errorf("value %q does not match key %q", v, k)
+		}
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	if len(keys) != 2 || keys[0] != "bar" || keys[1] != "foo" {
+		t.Errorf("unexpected keys: %v", keys)
+	}
+}
+
 func TestCacheScrubber(t *testing.T) {
 	const shortExpiration = 100 * time.Millisecond
 	c := cache.New[string, string](shortExpiration/2, shortExpiration)
-
 	c.Add("foo", "bar")
 
-	scrubbed := eventually(func() bool {
+	if scrubbed := eventually(func() bool {
 		return c.Size() == 0
-	}, time.Second, shortExpiration)
-
-	if !scrubbed {
+	}, time.Second, shortExpiration); !scrubbed {
 		t.Error("cache was not scrubbed")
 	}
 
-	// this forces the runtime.Finalizer to call stopScrubber
+	// force cleanup to be run and stop the scrubber
 	c = nil
 	runtime.GC()
-	time.Sleep(10 * time.Millisecond)
+}
+
+func BenchmarkCache_Get(b *testing.B) {
+	c := cache.New[int, string](time.Hour, 0)
+	for i := range 100_0000 {
+		c.Add(i, strconv.Itoa(i))
+	}
+	b.ResetTimer()
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, ok := c.Get(1); !ok {
+			b.Fail()
+		}
+	}
 }
 
 func eventually(f func() bool, timeout time.Duration, interval time.Duration) bool {
@@ -155,18 +189,4 @@ func eventually(f func() bool, timeout time.Duration, interval time.Duration) bo
 	}(ctx, f)
 
 	return <-ch
-}
-
-func BenchmarkCache_Get(b *testing.B) {
-	c := cache.New[int, string](time.Hour, 0)
-	for i := 0; i < 1e5; i++ {
-		c.Add(i, strconv.Itoa(i))
-	}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, ok := c.Get(1)
-		if !ok {
-			b.Fail()
-		}
-	}
 }

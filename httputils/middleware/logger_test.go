@@ -56,15 +56,14 @@ func TestLogger(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			out.Reset()
 
-			r := http.NewServeMux()
-			r.Handle("/", middleware.RequestLogger(l, tt.level, tt.logger)(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			h := middleware.RequestLogger(l, tt.level, tt.logger)(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 				_, _ = writer.Write([]byte("hello"))
-			})))
+			}))
 
 			req, _ := http.NewRequest(http.MethodGet, "/", nil)
 			req.RemoteAddr = "127.0.0.1:5000"
 			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
+			h.ServeHTTP(w, req)
 
 			if w.Code != http.StatusOK {
 				t.Errorf("got status %d, want %d", w.Code, http.StatusOK)

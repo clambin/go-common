@@ -233,15 +233,18 @@ func checkEqual[T any](t *testing.T, expected T, got T) {
 	}
 }
 
+// Current:
+// BenchmarkSet_List-16    	   12772	     92923 ns/op	   81921 B/op	       1 allocs/op
 func BenchmarkSet_List(b *testing.B) {
 	const setSize = 10000
 	data := make([]int, setSize)
-	for i := 0; i < setSize; i++ {
+	for i := range setSize {
 		data[i] = i
 	}
 	bigSet := set.New(data...)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	b.ReportAllocs()
+	for b.Loop() {
 		_ = bigSet.List()
 	}
 }
